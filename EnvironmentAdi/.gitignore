@@ -15,3 +15,7 @@ dashboard/data.js
 # Bridge runtime (written by the app / orchestrator)
 inbox/
 dashboard/run_status.json
+
+# HUD platform account state (taskset ids etc.)
+.hud/
+golden/**/__pycache__/

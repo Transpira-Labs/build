@@ -1,0 +1,9 @@
+FROM python:3.11-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+WORKDIR /app
+COPY pyproject.toml uv.lock* ./
+RUN uv sync --frozen --no-dev || uv sync --no-dev
+COPY env.py tasks.py ./
+COPY data ./data
+EXPOSE 8765
+CMD ["/app/.venv/bin/hud", "serve", "env:env", "--host", "0.0.0.0", "--port", "8765"]

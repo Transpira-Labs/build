@@ -30,7 +30,7 @@ BUILDERS: list[str] = [
 TRAINEE = os.environ.get("BENCHCEPTION_TRAINEE", "Qwen/Qwen3-8B")
 
 # The GOLDEN held-out benchmark — the real SC-bench (ACL 2026), ported to HUD.
-GOLDEN_ENV = str(Path(__file__).parent.parent / "golden" / "sc_bench" / "sc_bench_env.py")
+GOLDEN_ENV = str(Path(__file__).parent.parent / "golden" / "sc_bench" / "tasks.py")
 GOLDEN_TASKSET = "sc-bench"  # name on the HUD platform (hud sync tasks)
 
 # Kept for the older cross-play/probe flow (capture.py / run_benchception.py).
