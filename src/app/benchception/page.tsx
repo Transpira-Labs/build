@@ -741,18 +741,20 @@ function MockBlock({
 }) {
   return (
     <div
-      className={`flex items-center gap-2.5 border border-border bg-card px-3 py-2.5 ${
+      className={`flex items-start gap-3 border border-border bg-card px-3 py-2.5 ${
         indent ? "ml-4" : ""
       }`}
       style={{ borderLeft: `5px solid ${color}` }}
     >
       <span
-        className="w-[74px] text-[9.5px] font-bold uppercase tracking-[0.12em]"
+        className="w-[88px] flex-none whitespace-nowrap text-[9.5px] font-bold uppercase leading-[1.5] tracking-[0.08em]"
         style={{ color: tint }}
       >
         {kind}
       </span>
-      <span className="text-[12.5px] text-muted-foreground">{children}</span>
+      <span className="text-[12.5px] leading-[1.5] text-muted-foreground">
+        {children}
+      </span>
     </div>
   );
 }
