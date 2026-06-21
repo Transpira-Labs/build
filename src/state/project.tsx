@@ -1,8 +1,8 @@
 "use client";
 
-// In-memory project state for the block canvas. The editor reads and writes one
-// ProjectDoc through this reducer. Blocks live in a flat, freely-positioned list
-// (Scratch-style canvas); persistence and the backend pipeline layer on top.
+// In-memory project state. The editor reads and writes one ProjectDoc through
+// this reducer. Blocks form a recursive tree; top-level main blocks are freely
+// positioned on the canvas.
 
 import {
   createContext,
@@ -13,63 +13,43 @@ import {
   type ReactNode,
 } from "react";
 import {
-  CONTAINERS,
+  BLOCKS,
+  canAdd,
   emptyProject,
-  firstOfKind,
-  makeContainer,
-  makeSubBlock,
-  type ContainerInstance,
-  type ContainerKind,
+  findAccepting,
+  findBlock,
+  firstMain,
+  makeBlock,
+  makeMain,
+  mapBlock,
+  removeFromForest,
+  type Block,
+  type BlockKind,
+  type MainKind,
   type ProjectDoc,
-  type RewardValue,
-  type SettingValue,
-  type SubKind,
+  type ReferenceValue,
 } from "@/lib/blocks/model";
 
 type Action =
   | { type: "load"; doc: ProjectDoc }
   | { type: "setName"; name: string }
-  | { type: "placeContainer"; kind: ContainerKind; x: number; y: number }
-  | { type: "moveContainer"; id: string; x: number; y: number }
+  | { type: "placeMain"; kind: MainKind; x: number; y: number }
+  | {
+      type: "placeChildInNewMain";
+      mainKind: MainKind;
+      childKind: BlockKind;
+      x: number;
+      y: number;
+    }
+  | { type: "moveMain"; id: string; x: number; y: number }
   | { type: "bringToFront"; id: string }
-  | { type: "removeContainer"; id: string }
-  | { type: "renameContainer"; id: string; name: string }
-  | { type: "addSubBlock"; containerId: string; subKind: SubKind }
-  | { type: "removeSubBlock"; containerId: string; subId: string }
-  | { type: "setText"; containerId: string; subId: string; text: string }
-  | {
-      type: "patchReward";
-      containerId: string;
-      subId: string;
-      patch: Partial<RewardValue>;
-    }
-  | {
-      type: "patchSetting";
-      containerId: string;
-      subId: string;
-      patch: Partial<SettingValue>;
-    }
-  | { type: "reorderSub"; containerId: string; fromId: string; toId: string };
-
-// --- helpers ---------------------------------------------------------------
-
-function mapContainer(
-  doc: ProjectDoc,
-  id: string,
-  fn: (c: ContainerInstance) => ContainerInstance,
-): ProjectDoc {
-  return { ...doc, blocks: doc.blocks.map((b) => (b.id === id ? fn(b) : b)) };
-}
-
-function mapSub(
-  c: ContainerInstance,
-  subId: string,
-  fn: (b: ContainerInstance["subBlocks"][number]) => ContainerInstance["subBlocks"][number],
-): ContainerInstance {
-  return { ...c, subBlocks: c.subBlocks.map((b) => (b.id === subId ? fn(b) : b)) };
-}
-
-// --- reducer ---------------------------------------------------------------
+  | { type: "removeBlock"; id: string }
+  | { type: "renameBlock"; id: string; name: string }
+  | { type: "addChild"; parentId: string; kind: BlockKind }
+  | { type: "setText"; id: string; text: string }
+  | { type: "setNum"; id: string; num: number }
+  | { type: "patchReference"; id: string; patch: Partial<ReferenceValue> }
+  | { type: "reorder"; parentId: string; fromId: string; toId: string };
 
 function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
   switch (action.type) {
@@ -79,23 +59,45 @@ function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
     case "setName":
       return { ...doc, name: action.name };
 
-    case "placeContainer": {
-      // Singletons (Helper, Practice) may exist only once.
-      if (CONTAINERS[action.kind].singleton && firstOfKind(doc, action.kind)) {
-        return doc;
-      }
+    case "placeMain": {
+      if (BLOCKS[action.kind].singleton && firstMain(doc, action.kind)) return doc;
       return {
         ...doc,
-        blocks: [...doc.blocks, makeContainer(action.kind, action.x, action.y)],
+        blocks: [...doc.blocks, makeMain(action.kind, action.x, action.y)],
       };
     }
 
-    case "moveContainer":
-      return mapContainer(doc, action.id, (c) => ({
-        ...c,
-        x: action.x,
-        y: action.y,
-      }));
+    // Drop a detail block that has no home: spawn (or reuse) the main block it
+    // belongs to and tuck the detail into the right place inside it.
+    case "placeChildInNewMain": {
+      const existing = BLOCKS[action.mainKind].singleton
+        ? firstMain(doc, action.mainKind)
+        : undefined;
+      const main = existing ?? makeMain(action.mainKind, action.x, action.y);
+      const target = findAccepting(main, action.childKind);
+      const nextMain = target
+        ? mapBlock([main], target.id, (t) => ({
+            ...t,
+            children: [...t.children, makeBlock(action.childKind)],
+          }))[0]
+        : main;
+      return {
+        ...doc,
+        blocks: existing
+          ? mapBlock(doc.blocks, main.id, () => nextMain)
+          : [...doc.blocks, nextMain],
+      };
+    }
+
+    case "moveMain":
+      return {
+        ...doc,
+        blocks: mapBlock(doc.blocks, action.id, (b) => ({
+          ...b,
+          x: action.x,
+          y: action.y,
+        })),
+      };
 
     case "bringToFront": {
       const block = doc.blocks.find((b) => b.id === action.id);
@@ -106,61 +108,65 @@ function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
       };
     }
 
-    case "removeContainer":
-      return { ...doc, blocks: doc.blocks.filter((b) => b.id !== action.id) };
+    case "removeBlock":
+      return { ...doc, blocks: removeFromForest(doc.blocks, action.id) };
 
-    case "renameContainer":
-      return mapContainer(doc, action.id, (c) => ({ ...c, name: action.name }));
+    case "renameBlock":
+      return {
+        ...doc,
+        blocks: mapBlock(doc.blocks, action.id, (b) => ({ ...b, name: action.name })),
+      };
 
-    case "addSubBlock":
-      return mapContainer(doc, action.containerId, (c) =>
-        c.subBlocks.some((b) => b.kind === action.subKind)
-          ? c // each sub-kind at most once per container
-          : { ...c, subBlocks: [...c.subBlocks, makeSubBlock(action.subKind)] },
-      );
-
-    case "removeSubBlock":
-      return mapContainer(doc, action.containerId, (c) => ({
-        ...c,
-        subBlocks: c.subBlocks.filter((b) => b.id !== action.subId),
-      }));
+    case "addChild":
+      return {
+        ...doc,
+        blocks: mapBlock(doc.blocks, action.parentId, (p) =>
+          canAdd(p, action.kind)
+            ? { ...p, children: [...p.children, makeBlock(action.kind)] }
+            : p,
+        ),
+      };
 
     case "setText":
-      return mapContainer(doc, action.containerId, (c) =>
-        mapSub(c, action.subId, (b) => ({ ...b, text: action.text })),
-      );
+      return {
+        ...doc,
+        blocks: mapBlock(doc.blocks, action.id, (b) => ({ ...b, text: action.text })),
+      };
 
-    case "patchReward":
-      return mapContainer(doc, action.containerId, (c) =>
-        mapSub(c, action.subId, (b) => ({
+    case "setNum":
+      return {
+        ...doc,
+        blocks: mapBlock(doc.blocks, action.id, (b) => ({ ...b, num: action.num })),
+      };
+
+    case "patchReference":
+      return {
+        ...doc,
+        blocks: mapBlock(doc.blocks, action.id, (b) => ({
           ...b,
-          reward: b.reward ? { ...b.reward, ...action.patch } : b.reward,
+          reference: b.reference ? { ...b.reference, ...action.patch } : b.reference,
         })),
-      );
+      };
 
-    case "patchSetting":
-      return mapContainer(doc, action.containerId, (c) =>
-        mapSub(c, action.subId, (b) => ({
-          ...b,
-          setting: b.setting ? { ...b.setting, ...action.patch } : b.setting,
-        })),
-      );
-
-    case "reorderSub":
-      return mapContainer(doc, action.containerId, (c) => {
-        const ids = c.subBlocks.map((b) => b.id);
-        const from = ids.indexOf(action.fromId);
-        const to = ids.indexOf(action.toId);
-        if (from < 0 || to < 0 || from === to) return c;
-        const next = [...c.subBlocks];
-        const [moved] = next.splice(from, 1);
-        next.splice(to, 0, moved);
-        return { ...c, subBlocks: next };
-      });
+    case "reorder": {
+      const parent = findBlock(doc.blocks, action.parentId);
+      if (!parent) return doc;
+      const ids = parent.children.map((c) => c.id);
+      const from = ids.indexOf(action.fromId);
+      const to = ids.indexOf(action.toId);
+      if (from < 0 || to < 0 || from === to) return doc;
+      return {
+        ...doc,
+        blocks: mapBlock(doc.blocks, action.parentId, (p) => {
+          const next = [...p.children];
+          const [moved] = next.splice(from, 1);
+          next.splice(to, 0, moved);
+          return { ...p, children: next };
+        }),
+      };
+    }
   }
 }
-
-// --- context ---------------------------------------------------------------
 
 const ProjectContext = createContext<{
   doc: ProjectDoc;
@@ -188,3 +194,6 @@ export function useProject() {
   if (!ctx) throw new Error("useProject must be used inside <ProjectProvider>");
   return ctx;
 }
+
+// Re-export for convenience in components.
+export type { Block };

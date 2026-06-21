@@ -51,14 +51,63 @@ body {
   background-size: 22px 22px;
 }
 
-/* The little Scratch "notch" on the top of a command block. */
-.block-notch::before {
+/* ── Kids Mode: a friendlier, Scratch-style skin ───────────────────────────
+   A scoped overlay — every rule lives under .kids-mode so normal mode is
+   untouched, and colours are deliberately left alone. What changes: a rounded,
+   approachable (but not childish) typeface, slightly squarer corners than the
+   smooth default, a chunkier outline, and — the main thing — Scratch puzzle
+   connector tabs on every block so they read as pieces that snap together.
+   Each block carries `.kids-block` and a `--block-color` var (its own accent);
+   the tabs below are drawn in that colour and only appear in kids mode. The
+   kids rules are two classes deep, so they win on specificity without
+   !important. */
+.kids-mode {
+  --font-sans: ui-rounded, "SF Pro Rounded", "Varela Round", "Segoe UI",
+    system-ui, sans-serif;
+  --font-display: ui-rounded, "SF Pro Rounded", "Varela Round", "Segoe UI",
+    system-ui, sans-serif;
+}
+
+.kids-mode .font-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+/* Squarer, blockier corners than the smooth default (Scratch blocks are only
+   gently rounded), plus a slightly heavier outline so they feel physical. */
+.kids-mode .rounded-md {
+  border-radius: 0.4rem;
+}
+.kids-mode .rounded-lg {
+  border-radius: 0.5rem;
+}
+.kids-mode .rounded-b-lg {
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+}
+.kids-mode .border {
+  border-width: 2px;
+}
+
+/* Scratch-style connector tabs. A bump on top and bottom of every block, in the
+   block's own colour, so stacked/placed blocks look like they snap together.
+   Every .kids-block already establishes a positioning context of its own
+   (the canvas block is absolute, nested nodes and palette items are relative),
+   so the tabs anchor correctly without us overriding `position` here. */
+.kids-mode .kids-block::before,
+.kids-mode .kids-block::after {
   content: "";
   position: absolute;
-  top: -6px;
   left: 16px;
-  width: 22px;
+  width: 26px;
   height: 7px;
-  border-radius: 0 0 6px 6px;
-  background: inherit;
+  background: var(--block-color, currentColor);
+}
+.kids-mode .kids-block::before {
+  top: -6px;
+  border-radius: 5px 5px 0 0;
+}
+.kids-mode .kids-block::after {
+  bottom: -6px;
+  border-radius: 0 0 5px 5px;
 }

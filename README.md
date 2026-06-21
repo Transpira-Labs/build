@@ -1,26 +1,28 @@
-# Helper Lab
+# Environment Builder
 
 A Scratch-style, block-based builder for **HUD** reinforcement-learning
-environments. Anyone — including kids and non-technical users — snaps together
-visual blocks, describes each one in plain language, and gets an environment they
-can build, test, and train on. No code, JSON, or CLI in the default UI.
+environments. Snap together four kinds of blocks, describe each in plain
+language, and get an environment you can build, test, and train on — no code,
+JSON, or CLI in the default UI. Designed to live as a subdomain of the Transpira
+platform, sharing its look and feel.
 
 ## Status
 
 Build is incremental (see the build order in the project brief). **Done so far:**
 
-- **Step 1 — Block canvas (Scratch-style).** A category rail + scrollable block
-  palette on the left, and a **blank canvas** on the right the user populates by
-  dragging container blocks out and snapping typed sub-blocks into them.
-  Containers are freely positioned and movable; sub-blocks reorder within.
-  In-memory project document. Look & feel (cream/brown/burnt-orange, Montserrat +
-  Source Serif 4) is mirrored from `../platform`'s "warm alpine" design system.
+- **Step 1 — Block canvas (Scratch-style, platform-native).** A scrollable block
+  tray on the left (grouped by category) and a **blank canvas** on the right the
+  user populates by dragging blocks out and snapping detail blocks into them.
+  Blocks are freely positioned and movable; sub-blocks reorder within. In-memory
+  project document. Styling mirrors `../platform`'s "warm alpine" system
+  (cream / warm-brown / burnt-orange accent, Montserrat + Source Serif 4, flat
+  bordered cards, no emoji, thin-stroke SVG icons).
 - **The IR.** Canonical, normalized environment representation (`toIR`) that the
   backend pipeline will compile, check, and deploy.
 
 **Next:** IR persistence (save/load/fork) → pre-build "Check it" review →
-compile pipeline (NL → HUD SDK code) → local validate → guided reward + golden
-examples → deploy/train execution → practice/results view.
+compile pipeline (NL → HUD SDK code) → local validate → reward/rubric checks →
+deploy/train execution → practice/results view.
 
 ## Run it
 
@@ -30,21 +32,46 @@ npm run lint
 npx tsc --noEmit
 ```
 
+## Blocks (a recursive tree)
+
+Blocks form a **recursive tree** and nest to any depth. Every block kind has a
+`role`:
+
+- **main** — the four top-level blocks placed on the canvas (Environment, Tool,
+  Task, Train), freely positioned with x/y.
+- **group** — a nestable container that holds other blocks. Today: **Scoring**
+  (under Task), which holds Good/Bad answer blocks → so Task ▸ Scoring ▸ Good
+  answer is two levels of nesting. New groups are just registry entries.
+- **leaf** — holds a value (text / choice / number / reference).
+
+`BLOCKS[kind].accepts` is the typing rule (which child kinds may snap in);
+`isAllowed`/`canAdd` enforce it, `isRequired` marks defaults. Dropping a detail
+block snaps it into the **nearest accepting ancestor** under the pointer
+(`nearestAccepting`), so a Good answer lands in Scoring, a Goal in the Task.
+
+**Defaults:** dragging a block out pre-includes its always-needed children
+(`defaults`, recursively via `makeBlock`) — e.g. Task arrives with a Question and
+a Scoring block already holding one Good and one Bad answer. Repeatable ones
+(`many`) start with one; add more anytime.
+
+**Palette:** collapsed by default to just the four main blocks; click the
+chevron to reveal that block's detail blocks, indented by nesting depth
+(`descendants`). Each main and group block carries a **"?" help popover**
+explaining what it's for and what can go inside.
+
+→ IR: Environment → `environment`; each Tool → `tools[]` (goal→description,
+in→inputs, out→returns); each Task → `tasks[]` (prompt, references, good/bad →
+`rubric`, plus optional per-task goal/in/out/format); Train → `train`
+(`algorithm: "auto"` so an LLM picks the RL framework).
+
 ## Architecture
 
 | Path | Role |
 |------|------|
-| `src/lib/blocks/model.ts` | Editor document, block registry, and the typing rules (which sub-block snaps into which container). The single source of truth for the UI. |
-| `src/lib/ir/schema.ts` | Canonical IR (Zod) + `toIR(doc)` projection + reward-spec generation. Source of truth for the backend. |
-| `src/state/project.tsx` | In-memory `ProjectDoc` (flat, freely-positioned `blocks[]`) via React context + reducer. |
-| `src/components/builder/` | The dnd-kit canvas: `Builder` (DndContext), `Palette` (rail + tray), `PaletteItem`, `Canvas` (blank workspace), `Container`, `SubBlockCard`, reward/setting editors. |
-
-### Container ↔ IR mapping
-
-- **Helper** (purple) → `environment` (Goal, What goes in, What comes out)
-- **Tool** (teal) → `tools[]` (name + What it does)
-- **Challenge** (coral) → `tasks[]` (Question + Reward)
-- **Practice** (pink) → `train` (Setting)
+| `src/lib/blocks/model.ts` | Recursive `Block` tree, the `BLOCKS` registry, typing rules (`isAllowed`/`canAdd`/`nearestAccepting`), and pure tree ops (`mapBlock`, `findPath`, `removeFromForest`). Single source of truth for the UI. |
+| `src/lib/ir/schema.ts` | Canonical IR (Zod) + `toIR(doc)` projection (walks the tree; rubric comes from the nested Scoring group). Source of truth for the backend. |
+| `src/state/project.tsx` | In-memory `ProjectDoc` (recursive `blocks[]`) via React context + reducer over the tree. |
+| `src/components/builder/` | The dnd-kit canvas: `Builder` (DndContext + nested-aware collision), `Palette` + `PaletteItem` (collapsible), `Canvas`, `MainBlock`, `BlockNode` (recursive group/leaf), `FieldEditor`, `HelpPopover`, `icons`. |
 
 ## Stack
 

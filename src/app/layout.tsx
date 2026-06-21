@@ -16,8 +16,8 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Helper Lab",
-  description: "Build, test, and train your own AI helper — no code needed.",
+  title: "Environment Builder",
+  description: "Build, test, and train RL environments by snapping blocks together.",
 };
 
 export default function RootLayout({

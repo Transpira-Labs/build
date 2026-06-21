@@ -1,49 +1,57 @@
 // The canonical IR — the source of truth the backend compiles, checks, and
-// deploys. The block canvas edits a ProjectDoc (see ../blocks/model.ts); `toIR`
-// projects that doc into this normalized shape. Generated HUD code is derived
-// from the IR, never the other way around.
+// deploys. The block canvas edits a recursive ProjectDoc (../blocks/model.ts);
+// `toIR` projects it into this normalized shape. Generated HUD code derives
+// from the IR.
 
 import { z } from "zod";
-import { firstOfKind, type ProjectDoc, type RewardValue } from "../blocks/model";
+import {
+  BLOCKS,
+  firstMain,
+  type Block,
+  type BlockKind,
+  type ProjectDoc,
+} from "../blocks/model";
 
-export const toolBackendSchema = z.object({
-  // v1 ships "stub"; "fixture" and "api" are reserved for later.
-  type: z.enum(["stub", "fixture", "api"]).default("stub"),
+export const referenceSchema = z.object({
+  mode: z.enum(["link", "upload"]),
+  value: z.string(),
 });
 
 export const toolSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  backend: toolBackendSchema,
+  inputs: z.string(),
+  returns: z.string(),
+  backend: z.object({ type: z.enum(["stub", "fixture", "api"]).default("stub") }),
 });
 
-export const rewardSchema = z.object({
-  mode: z.enum(["guided", "advanced"]),
-  /** Human-readable, deterministic scoring rule, e.g. `answer == 3 -> 1.0 else 0.0`. */
-  spec: z.string(),
+export const rubricSchema = z.object({
+  good: z.array(z.string()),
+  bad: z.array(z.string()),
 });
 
 export const taskSchema = z.object({
   id: z.string(),
   name: z.string(),
   prompt: z.string(),
-  reward: rewardSchema,
-  /** Parameterized variants → taskset (added in a later step). */
+  references: z.array(referenceSchema),
+  rubric: rubricSchema,
   variants: z.array(z.record(z.string(), z.unknown())).default([]),
 });
 
 export const environmentSchema = z.object({
-  objective: z.string(),
-  inputs: z.string(),
-  outputs: z.string(),
+  /** High-level description of the environment. */
+  description: z.string(),
+  /** Any general setup info HUD needs, beyond tools/tasks. */
+  setup: z.string(),
 });
 
 export const trainSchema = z.object({
   algorithm: z.string(),
   base_model: z.string(),
-  episodes: z.number().int().nonnegative(),
-  eval_split: z.number().min(0).max(1),
+  set_size: z.number().int().nonnegative(),
+  improvement: z.string(),
 });
 
 export const compiledSchema = z.object({
@@ -70,87 +78,76 @@ export type IRTool = z.infer<typeof toolSchema>;
 export type IRTask = z.infer<typeof taskSchema>;
 
 // ---------------------------------------------------------------------------
-// Reward spec generation (guided → deterministic string)
+// Projection helpers (over direct children)
 // ---------------------------------------------------------------------------
 
-const COMPARATOR_OP: Record<RewardValue["comparator"], string> = {
-  equals: "==",
-  contains: "contains",
-  is_at_least: ">=",
-  is_at_most: "<=",
-};
+function childText(block: Block | undefined, kind: BlockKind): string {
+  return block?.children.find((c) => c.kind === kind)?.text?.trim() ?? "";
+}
 
-/** Turn a reward block into a plain, deterministic scoring rule. */
-export function rewardToSpec(reward: RewardValue): string {
-  if (reward.mode === "advanced") {
-    return reward.freeText.trim();
+/** Collect text of a kind nested anywhere beneath a block (e.g. inside Scoring). */
+function deepText(block: Block, kind: BlockKind): string[] {
+  const out: string[] = [];
+  for (const c of block.children) {
+    if (c.kind === kind && c.text?.trim()) out.push(c.text.trim());
+    out.push(...deepText(c, kind));
   }
-  const op = COMPARATOR_OP[reward.comparator];
-  const target = reward.target.trim() || "?";
-  const pts = reward.points.toFixed(1);
-  const lhs =
-    op === "contains" ? `answer contains "${target}"` : `answer ${op} ${target}`;
-  return `${lhs} -> ${pts} else 0.0`;
+  return out;
 }
 
 // ---------------------------------------------------------------------------
 // Projection: ProjectDoc → IR
 // ---------------------------------------------------------------------------
 
-function textOf(
-  instance: { subBlocks: { kind: string; text?: string }[] },
-  kind: string,
-): string {
-  return instance.subBlocks.find((b) => b.kind === kind)?.text?.trim() ?? "";
-}
-
-/** Project the editor document into the canonical IR. Pure and deterministic. */
 export function toIR(doc: ProjectDoc): IR {
-  const env = firstOfKind(doc, "environment");
+  const env = firstMain(doc, "environment");
 
   const tools: IRTool[] = doc.blocks
     .filter((b) => b.kind === "tool")
     .map((t) => ({
       id: t.id,
       name: t.name?.trim() || "tool",
-      description: textOf(t, "what_it_does"),
+      description: childText(t, "goal"),
+      inputs: childText(t, "input"),
+      returns: childText(t, "output"),
       backend: { type: "stub" as const },
     }));
 
   const tasks: IRTask[] = doc.blocks
     .filter((b) => b.kind === "task")
-    .map((t) => {
-      const reward = t.subBlocks.find((b) => b.kind === "reward")?.reward;
-      return {
-        id: t.id,
-        name: t.name?.trim() || "challenge",
-        prompt: textOf(t, "question"),
-        reward: {
-          mode: reward?.mode ?? "guided",
-          spec: reward ? rewardToSpec(reward) : "",
-        },
-        variants: [],
-      };
-    });
+    .map((t) => ({
+      id: t.id,
+      name: t.name?.trim() || "task",
+      prompt: childText(t, "prompt"),
+      references: t.children
+        .filter((c) => c.kind === "reference" && c.reference?.value.trim())
+        .map((c) => ({ mode: c.reference!.mode, value: c.reference!.value.trim() })),
+      // Good/bad answers live inside the nested Scoring group.
+      rubric: {
+        good: deepText(t, "good_outcome"),
+        bad: deepText(t, "bad_outcome"),
+      },
+      variants: [],
+    }));
 
-  const setting = firstOfKind(doc, "train")?.subBlocks.find(
-    (b) => b.kind === "setting",
-  )?.setting;
+  const train = firstMain(doc, "train");
+  const setSize =
+    train?.children.find((c) => c.kind === "set_size")?.num ??
+    BLOCKS.set_size.number!.default;
 
   return {
     project: { id: doc.id, name: doc.name, version: doc.version },
     environment: {
-      objective: env ? textOf(env, "goal") : "",
-      inputs: env ? textOf(env, "input") : "",
-      outputs: env ? textOf(env, "output") : "",
+      description: childText(env, "overview"),
+      setup: childText(env, "setup"),
     },
     tools,
     tasks,
     train: {
-      algorithm: "grpo",
-      base_model: setting?.baseModel ?? "qwen3-8b",
-      episodes: setting?.episodes ?? 100,
-      eval_split: 0.2,
+      algorithm: "auto",
+      base_model: childText(train, "model") || "qwen3-8b",
+      set_size: setSize,
+      improvement: childText(train, "improvement"),
     },
   };
 }
