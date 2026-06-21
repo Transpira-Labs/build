@@ -56,9 +56,9 @@ def _hosted_agent(slug: str, train: bool):
     return at.cls(config=at.config_cls(**kw))
 
 
-async def _train_one(builder: str, slug: str, taskset_name: str, cfg: dict, state: dict) -> None:
-    from hud.agents import create_agent
-    from hud.eval import HostedRuntime, Job, Taskset
+async def _train_one(builder: str, slug: str, taskset_name: str, cfg: dict, state: dict,
+                     tasks_per_step: int = 4) -> None:
+    from hud.eval import HostedRuntime, Taskset
     from hud.train import TrainingClient
 
     lr = float(cfg.get("learning_rate", 1e-5))
@@ -70,22 +70,31 @@ async def _train_one(builder: str, slug: str, taskset_name: str, cfg: dict, stat
                       "taskset": taskset_name, "total_steps": steps, "done_steps": 0, "history": []}
     _write(state)
 
-    # Platform taskset -> rollouts run on HUD's infra (not locally). Pass the
-    # model by name (slug); the hosted runner builds the gateway client and, in a
-    # training Job session, records token ids/logprobs for the gradient step.
+    # Platform taskset -> rollouts run on HUD's infra (not locally). Subsample a
+    # few tasks/step so each hosted step (tasks x group rollouts) finishes fast.
     ts = Taskset.from_api(taskset_name)
+    if tasks_per_step:
+        ts = Taskset(taskset_name, list(ts)[:tasks_per_step])
     agent = _hosted_agent(slug, train=True)
     trainer = TrainingClient(slug)
 
     for step in range(steps):
-        # HostedRuntime -> the whole rollout runs off-box on HUD's infra; read the
-        # graded runs straight off the RETURNED job (the hosted results), not an
-        # accumulating session (which doesn't fold hosted results back in).
-        job = await ts.run(agent, runtime=HostedRuntime(), group=group)
-        fresh = list(getattr(job, "runs", []) or [])
-        trainable = [r for r in fresh if not getattr(r, "failed", False)]
+        # HostedRuntime -> rollouts run off-box on HUD's infra. Retry the step on
+        # transient platform 500s / all-failed batches (overnight-resilient).
+        trainable: list = []
+        for attempt in range(8):
+            try:
+                job = await ts.run(agent, runtime=HostedRuntime(), group=group)
+                fresh = list(getattr(job, "runs", []) or [])
+                trainable = [r for r in fresh if not getattr(r, "failed", False)]
+            except Exception as e:  # noqa: BLE001
+                state[builder]["last_error"] = f"attempt {attempt+1}: {type(e).__name__}: {e}"
+                _write(state)
+            if trainable:
+                break
+            await asyncio.sleep(45)  # back off; platform 500s are usually transient
         if not trainable:
-            raise RuntimeError(f"step {step+1}: 0/{len(fresh)} rollouts usable")
+            raise RuntimeError(f"step {step+1}: rollouts unusable after retries")
         await trainer.step(trainable, learning_rate=lr, group_size=group, loss_fn=loss)
         ckpts = await trainer.checkpoints()
         last = ckpts[-1] if ckpts else None
@@ -125,8 +134,17 @@ async def _main(validate: bool, eval_group: int, solo: str | None = None,
             cfg["steps"] = 1
         elif steps_cap:
             cfg["steps"] = min(int(cfg.get("steps", steps_cap)), steps_cap)
-        await _train_one(b, slug, TASKSETS[b], cfg, state)
-        state[b]["golden"] = await _eval_golden(slug, eval_group)
+        try:
+            await _train_one(b, slug, TASKSETS[b], cfg, state)
+        except Exception as e:  # noqa: BLE001 - one fork failing must not abort the other
+            state.setdefault(b, {})["state"] = "error"
+            state[b]["error"] = f"{type(e).__name__}: {e}"
+            _write(state)
+        # Eval whatever the fork's head is now (even partially trained) for the board.
+        try:
+            state.setdefault(b, {})["golden"] = await _eval_golden(slug, eval_group)
+        except Exception as e:  # noqa: BLE001
+            state[b]["golden_error"] = f"{type(e).__name__}: {e}"
         _write(state)
 
     if parallel and not solo:
