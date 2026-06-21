@@ -59,12 +59,14 @@ def _byname_agent(slug: str):
     return at.cls(config=at.config_cls(model=slug))
 
 
-async def _validate(slug: str, group: int) -> dict:
+async def _validate(slug: str, group: int, n_tasks: int = 0) -> dict:
     """Eval the fork's current head on the sc-bench validation set (remote ->
-    a real platform Job on the leaderboard)."""
+    a real platform Job on the leaderboard). n_tasks>0 -> a representative subset
+    for a fast per-step curve (a full eval is run at the end for the leaderboard)."""
     from hud.eval import HostedRuntime, Taskset
 
-    ts = Taskset.from_api(GOLDEN_TASKSET)
+    full = Taskset.from_api(GOLDEN_TASKSET)
+    ts = Taskset(GOLDEN_TASKSET, list(full)[:n_tasks]) if n_tasks else full
     # Cap concurrent hosted launches so we don't swamp the network (DNS failures).
     job = await ts.run(_byname_agent(slug), runtime=HostedRuntime(run_timeout=1800),
                        group=group, max_concurrent=8)
@@ -74,7 +76,8 @@ async def _validate(slug: str, group: int) -> dict:
 
 
 async def train_fork(builder: str, slug: str, steps: int, lr: float,
-                     train_group: int, tps: int, mc: int, val_group: int) -> None:
+                     train_group: int, tps: int, mc: int, val_group: int,
+                     val_tasks: int = 0) -> None:
     from hud.agents import create_agent
     from hud.eval import Job, LocalRuntime, Taskset
     from hud.train import TrainingClient
@@ -121,7 +124,7 @@ async def train_fork(builder: str, slug: str, steps: int, lr: float,
 
         val = {"reward": None}
         try:
-            val = await _validate(slug, val_group)
+            val = await _validate(slug, val_group, val_tasks)
         except Exception as e:  # noqa: BLE001
             val = {"reward": None, "error": f"{type(e).__name__}: {str(e)[:80]}"}
 
@@ -150,8 +153,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--lr", type=float, default=1e-5)
     p.add_argument("--train-group", type=int, default=4)
     p.add_argument("--tasks-per-step", type=int, default=4)
-    p.add_argument("--max-concurrent", type=int, default=2)
+    p.add_argument("--max-concurrent", type=int, default=4)
     p.add_argument("--val-group", type=int, default=5)
+    p.add_argument("--val-tasks", type=int, default=10,
+                   help="sc-bench tasks per per-step validation (0 = all)")
     args = p.parse_args(argv)
     load_hud_key()
 
@@ -160,7 +165,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         loop.run_until_complete(train_fork(
             args.builder, FORKS[args.builder], args.steps, args.lr,
-            args.train_group, args.tasks_per_step, args.max_concurrent, args.val_group))
+            args.train_group, args.tasks_per_step, args.max_concurrent,
+            args.val_group, args.val_tasks))
     finally:
         loop.run_until_complete(asyncio.sleep(0.2))
         loop.close()
