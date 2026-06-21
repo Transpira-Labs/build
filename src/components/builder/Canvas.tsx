@@ -4,8 +4,8 @@
 // content layer where the main blocks live at absolute positions.
 
 import { useDroppable } from "@dnd-kit/core";
-import { useEffect, useRef, useState, type RefObject } from "react";
-import { LayoutGrid } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { LayoutGrid, Maximize2 } from "lucide-react";
 import type { BlockKind } from "@/lib/blocks/model";
 import { useProject } from "@/state/project";
 import { MainBlock } from "./MainBlock";
@@ -71,6 +71,47 @@ export function Canvas({
     setGrabbing(false);
   };
 
+  // Recenter the viewport on every placed block (the bounding box of the whole
+  // canvas), scaling to fit with a margin. Rescues blocks dragged off-screen.
+  const fitToBlocks = useCallback(() => {
+    const el = canvasRef.current;
+    if (!el || doc.blocks.length === 0) {
+      setView(() => ({ x: 0, y: 0, scale: 1 }));
+      return;
+    }
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const b of doc.blocks) {
+      const node = el.querySelector(
+        `[data-block-id="${b.id}"]`,
+      ) as HTMLElement | null;
+      // offsetWidth/Height are unscaled layout sizes — content coordinates.
+      const w = node?.offsetWidth ?? 340;
+      const h = node?.offsetHeight ?? 160;
+      const x = b.x ?? 0;
+      const y = b.y ?? 0;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + w);
+      maxY = Math.max(maxY, y + h);
+    }
+
+    const rect = el.getBoundingClientRect();
+    const pad = 80;
+    const bw = Math.max(1, maxX - minX);
+    const bh = Math.max(1, maxY - minY);
+    const scale = Math.min(
+      2.5,
+      Math.max(0.3, Math.min((rect.width - pad * 2) / bw, (rect.height - pad * 2) / bh)),
+    );
+    // Map the block-box center to the viewport center: screen = view + content*scale.
+    const x = rect.width / 2 - (minX + bw / 2) * scale;
+    const y = rect.height / 2 - (minY + bh / 2) * scale;
+    setView(() => ({ x, y, scale }));
+  }, [canvasRef, doc.blocks, setView]);
+
   const s = view.scale;
   const grid: React.CSSProperties = {
     backgroundColor: "oklch(0.94 0.016 82)",
@@ -131,9 +172,22 @@ export function Canvas({
         ))}
       </div>
 
-      {/* Zoom indicator */}
-      <div className="pointer-events-none absolute bottom-3 right-3 rounded-md border border-border bg-card/80 px-2 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur-sm">
-        {Math.round(s * 100)}%
+      {/* Zoom indicator + fit-to-blocks control */}
+      <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={fitToBlocks}
+          title={doc.blocks.length ? "Fit all blocks in view" : "Reset view"}
+          aria-label="Fit all blocks in view"
+          className="flex items-center gap-1 rounded-md border border-border bg-card/80 px-2 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-sm transition-colors hover:bg-card hover:text-foreground"
+        >
+          <Maximize2 className="size-3" />
+          Fit
+        </button>
+        <div className="pointer-events-none rounded-md border border-border bg-card/80 px-2 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur-sm">
+          {Math.round(s * 100)}%
+        </div>
       </div>
     </div>
   );

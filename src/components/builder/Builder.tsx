@@ -154,10 +154,11 @@ export function Builder() {
       pointer.current.y >= rect.top &&
       pointer.current.y <= rect.bottom;
     if (!inside) return null;
-    // Screen → content coordinates (undo the canvas pan/zoom transform).
+    // Screen → content coordinates (undo the canvas pan/zoom transform). No
+    // lower clamp — blocks can live anywhere on the (pannable) infinite canvas.
     return {
-      x: Math.max(0, (pointer.current.x - rect.left - view.x) / view.scale - 24),
-      y: Math.max(0, (pointer.current.y - rect.top - view.y) / view.scale - 16),
+      x: (pointer.current.x - rect.left - view.x) / view.scale - 24,
+      y: (pointer.current.y - rect.top - view.y) / view.scale - 16,
     };
   }
 
@@ -170,8 +171,8 @@ export function Builder() {
     dispatch({
       type: "placeMain",
       kind,
-      x: Math.max(0, cx - 170),
-      y: Math.max(0, cy - 140),
+      x: cx - 170,
+      y: cy - 140,
     });
   }
 
@@ -315,8 +316,8 @@ export function Builder() {
         .filter((b): b is NonNullable<typeof b> => !!b)
         .map((b) => ({
           id: b.id,
-          x: Math.max(0, (b.x ?? 0) + dx),
-          y: Math.max(0, (b.y ?? 0) + dy),
+          x: (b.x ?? 0) + dx,
+          y: (b.y ?? 0) + dy,
         }));
       dispatch({ type: "moveMany", moves });
       dispatch({ type: "connect", childId: a.id, parentId: newParent });

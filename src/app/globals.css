@@ -125,18 +125,18 @@ body {
   position: absolute;
   top: 0;
   left: 22px;
-  width: 34px;
-  height: 10px;
-  border-radius: 5px 5px 0 0;
+  width: 42px;
+  height: 13px;
+  border-radius: 6px 6px 0 0;
   background: rgba(0, 0, 0, 0.26);
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.32);
 }
 .blk-peg {
   position: absolute;
-  bottom: -9px;
+  bottom: -24px;
   left: 22px;
-  width: 34px;
-  height: 10px;
-  border-radius: 0 0 6px 6px;
+  width: 42px;
+  height: 25px;
+  border-radius: 0 0 7px 7px;
   background: var(--block-color, #8c7b63);
 }
