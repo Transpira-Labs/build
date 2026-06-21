@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python / backend
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+backend/.venv/
+backend/out/
+backend/**/out/
+
+# local package-manager artifacts (repo standardizes on npm / package-lock.json)
+pnpm-lock.yaml
+pnpm-workspace.yaml
