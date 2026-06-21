@@ -44,13 +44,17 @@ def tool_contributions(
             imports.append(imp)
 
     tools_list = f"TOOLS = [{', '.join(t.name for t in toolset.tools)}]"
+    # The shared WORLD seed must be defined BEFORE the tool defs that read it.
+    pre_env = [toolset.world] if toolset.world else []
+    pre_env += ["\n\n".join(defs), tools_list]
+    defines = (["WORLD"] if toolset.world else []) + [t.name for t in toolset.tools]
     return [EnvContribution(
         source="tools",
         imports=imports,
-        pre_env=["\n\n".join(defs), tools_list],
+        pre_env=pre_env,
         post_env=[mcp_body],
         py_deps=["fastmcp"],
-        defines=[t.name for t in toolset.tools],
+        defines=defines,
         diagnostics=diagnostics,
     )]
 

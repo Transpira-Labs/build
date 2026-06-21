@@ -8,8 +8,13 @@ configured or the call fails, so the caller degrades to a safe stub.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from synth.contracts import SynthesizedTool, ToolBlock, ToolParam
 from synth.tools.gateway import complete_json
+
+if TYPE_CHECKING:
+    from synth.tools.world import World
 
 _TOOL_SCHEMA = {
     "type": "object",
@@ -52,14 +57,30 @@ Given a tool name and an English description, write one self-contained Python fu
 - Include any imports directly above the def. Do not include comments or examples.
 Call emit_tool exactly once."""
 
+_SYSTEM_WORLD = """You implement a single tool for a reinforcement-learning environment.
+The environment has ONE shared, frozen dataset in a module-global dict `WORLD`; tools must
+read their answers from it so the data stays consistent and reproducible across rollouts.
+Write one self-contained Python function:
+- The function name MUST equal the given tool name (a snake_case identifier).
+- Infer parameters from the description; give each a type.
+- Read all returned data from `WORLD` (already defined above your function — do NOT redefine,
+  reassign, or re-create it). Look entities up by the input id(s).
+- NEVER use `random`, time, or any non-determinism. Unknown id -> an empty/default result.
+- Keep it dependency-light (standard library only) and return a string. needs_sandbox=false.
+- Include any imports directly above the def. Do not include comments or examples.
+Call emit_tool exactly once."""
 
-def llm_synthesize_tool(block: ToolBlock) -> SynthesizedTool | None:
+
+def llm_synthesize_tool(block: ToolBlock, world: "World | None" = None) -> SynthesizedTool | None:
     user = f"Tool name: {block.name}\nDescription: {block.functionality}"
     if block.params:  # richer schemas may declare explicit params — pass them as hints
         hints = "; ".join(f"{p.name}:{p.type}" + ("" if p.required else "?") for p in block.params)
         user += f"\nDeclared parameters: {hints}"
+    if world is not None:
+        from synth.tools.world import world_codegen_context
+        user += world_codegen_context(world)
     data = complete_json(
-        system=_SYSTEM,
+        system=_SYSTEM_WORLD if world is not None else _SYSTEM,
         user=user,
         schema=_TOOL_SCHEMA,
         fn_name="emit_tool",

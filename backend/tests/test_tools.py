@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from synth.contracts import ProjectSpec, ToolBlock
+from synth.contracts import EnvBlock, ProjectSpec, TaskBlock, ToolBlock
 from synth.tools.assemble import assemble_module, emit_mcp_server
 from synth.tools.extract import extract_project
 from synth.tools.match import match_template
@@ -11,6 +11,8 @@ from synth.tools.synthesizer import (
     synthesize_tool,
     synthesize_toolset,
 )
+import synth.tools.synthesizer as TS
+from synth.tools.world import World, render_world, synthesize_world
 
 
 def test_calculator_matches_template_and_runs_safely():
@@ -163,3 +165,55 @@ def test_ensure_docstring_noop_when_present():
     from synth.tools.synthesizer import ensure_docstring
     src = 'def f(x: str) -> str:\n    """already documented."""\n    return x\n'
     assert ensure_docstring(src, "other") == src
+
+
+# ── shared WORLD seed (deterministic, task-resolvable tool data) ───────────────
+def _spec_with_task():
+    return ProjectSpec(
+        env=EnvBlock(name="sc", description="orders"),
+        tools=[ToolBlock(name="get_cancel_reason", functionality="cancellation reason for an order")],
+        tasks=[TaskBlock(prompt="Why was FO2001 cancelled?", answerType="state", answer="FO2001 cancelled: wrong size.")],
+    )
+
+
+def test_render_world_is_valid_python_defining_WORLD():
+    world = World(data={"FO2001": {"status": "cancelled", "reason": "wrong size", "ok": True}}, note="by id")
+    src = render_world(world)
+    assert src.startswith("# ") and "WORLD = {" in src
+    ns: dict = {}
+    exec(compile(src, "<world>", "exec"), ns)            # valid, executable python
+    assert ns["WORLD"]["FO2001"]["status"] == "cancelled"
+    assert ns["WORLD"]["FO2001"]["ok"] is True           # JSON true -> python True
+
+
+def test_synthesize_world_is_none_offline():
+    assert synthesize_world(_spec_with_task(), use_llm=False) is None
+
+
+def test_world_threads_into_codegen_and_lands_before_tool_defs(monkeypatch):
+    seed = World(data={"FO2001": {"reason": "wrong size"}}, note="orders keyed by id")
+    monkeypatch.setattr(TS, "synthesize_world", lambda spec, *, use_llm=True: seed)
+
+    seen = {}
+    def fake_llm(block, world=None):
+        seen["world"] = world  # the tool codegen receives the shared seed
+        from synth.contracts import SynthesizedTool
+        return SynthesizedTool(name=block.name, description="d", params=[],
+                               source=f"def {block.name}(order_id: str) -> str:\n"
+                                      f'    """d"""\n    return str(WORLD.get(order_id, {{}}))\n',
+                               origin="llm", needs_sandbox=False)
+    monkeypatch.setattr(TS, "llm_synthesize_tool", fake_llm)
+
+    toolset = synthesize_toolset(_spec_with_task(), use_llm=True)
+    assert seen["world"] is seed                         # world reached the codegen
+    assert toolset.world is not None and "WORLD = {" in toolset.world
+    assert toolset.meta["seeded"] is True
+
+    # and it compiles into env.py with WORLD defined before the tools that read it
+    from synth.compile.contributors import tool_contributions
+    from synth.compile.ir import build_codebase
+    cb = build_codebase(tool_contributions(toolset), env_name="sc")
+    src = cb.files["env.py"]
+    assert "WORLD" in cb.ir.defines
+    assert src.index("WORLD = {") < src.index("def get_cancel_reason(")
+    compile(src, "env.py", "exec")
