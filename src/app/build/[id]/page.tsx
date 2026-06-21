@@ -9,15 +9,33 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
+import { ArrowLeft, Check } from "lucide-react";
 import { useProject, ProjectProvider } from "@/state/project";
 import { useKidsMode } from "@/state/kidsMode";
 import { saveEnvironment, useEnvironment } from "@/lib/library";
-import { toIR } from "@/lib/ir/schema";
+import { RightPanel } from "@/components/builder/RightPanel";
+import { CheckButton } from "@/components/builder/CheckButton";
+import type { Block } from "@/lib/blocks/model";
 
 const Builder = dynamic(
   () => import("@/components/builder/Builder").then((m) => m.Builder),
   { ssr: false, loading: () => <div className="canvas-grid h-full w-full" /> },
 );
+
+/** Count tools and tasks anywhere in the block tree (for the header stats). */
+function blockCounts(blocks: Block[]): { tools: number; tasks: number } {
+  let tools = 0;
+  let tasks = 0;
+  const walk = (bs: Block[]) => {
+    for (const b of bs) {
+      if (b.kind === "tool") tools++;
+      if (b.kind === "task") tasks++;
+      if (b.children.length) walk(b.children);
+    }
+  };
+  walk(blocks);
+  return { tools, tasks };
+}
 
 // Hidden for now — kept so kids mode can be re-enabled by un-commenting the
 // <KidsModeToggle /> render above.
@@ -53,57 +71,61 @@ function KidsModeToggle() {
 
 function TopBar() {
   const { doc, dispatch } = useProject();
-  const [peek, setPeek] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const { tools, tasks } = blockCounts(doc.blocks);
+
+  const save = () => {
+    saveEnvironment(doc);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1200);
+  };
 
   return (
     <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-2.5">
-      <div className="flex items-baseline gap-2">
-        <Link
-          href="/"
-          className="font-display text-base font-semibold hover:text-accent"
-        >
-          Environments
-        </Link>
-        <span className="text-muted-foreground/40">/</span>
-      </div>
+      <Link
+        href="/"
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-3.5" />
+        Environments
+      </Link>
+      <span className="h-4 w-px bg-border" />
       <input
         value={doc.name}
         onChange={(e) => dispatch({ type: "setName", name: e.target.value })}
         aria-label="Environment name"
-        className="rounded-md border border-transparent bg-background px-2.5 py-1 text-sm font-semibold outline-none hover:border-border focus:border-accent focus:ring-2 focus:ring-ring"
+        placeholder="Untitled environment"
+        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground/50"
       />
+      <span className="h-4 w-px bg-border" />
+      <span className="shrink-0 text-xs text-muted-foreground">
+        {tools} tool{tools === 1 ? "" : "s"} · {tasks} task{tasks === 1 ? "" : "s"}
+      </span>
 
-      <div className="ml-auto flex items-center gap-2 text-sm">
-        {/* Kids mode toggle hidden for now (component kept below for later). */}
-        {/* <KidsModeToggle /> */}
+      <div className="flex shrink-0 items-center gap-2">
         <button
-          onClick={() => setPeek((p) => !p)}
-          className="rounded-md px-2.5 py-1.5 font-medium text-muted-foreground hover:bg-muted"
+          onClick={save}
+          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
         >
-          {peek ? "Hide" : "Under the hood"}
+          {saved ? (
+            <>
+              <Check className="size-3.5 text-green-600" />
+              <span className="text-green-600">Saved</span>
+            </>
+          ) : (
+            "Save"
+          )}
         </button>
-        {/* Wired up in later build steps (pre-build check → build & practice). */}
+        <CheckButton />
+        {/* Wired up in a later build step (compile → deploy → train). */}
         <button
           disabled
-          className="cursor-not-allowed rounded-md border border-border px-3 py-1.5 font-medium text-muted-foreground/60"
+          className="cursor-not-allowed rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground opacity-50"
           title="Coming next"
         >
-          Check it
-        </button>
-        <button
-          disabled
-          className="cursor-not-allowed rounded-md bg-accent/40 px-3 py-1.5 font-medium text-accent-foreground"
-          title="Coming next"
-        >
-          Build &amp; train
+          Compile
         </button>
       </div>
-
-      {peek && (
-        <pre className="fixed bottom-4 right-4 z-50 max-h-[60vh] w-96 overflow-auto rounded-xl border border-border bg-foreground p-4 text-xs leading-relaxed text-background shadow-2xl">
-          {JSON.stringify(toIR(doc), null, 2)}
-        </pre>
-      )}
     </header>
   );
 }
@@ -160,8 +182,9 @@ function BuildShell() {
     <div className={`flex h-screen flex-col ${kids ? "kids-mode" : ""}`}>
       <TopBar />
       <Persist />
-      <div className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1">
         <Builder />
+        <RightPanel />
       </div>
     </div>
   );

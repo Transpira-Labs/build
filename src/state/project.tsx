@@ -29,6 +29,7 @@ import {
   type MainKind,
   type ProjectDoc,
   type ReferenceValue,
+  type TrainSettings,
 } from "@/lib/blocks/model";
 
 type Action =
@@ -52,6 +53,7 @@ type Action =
   | { type: "setText"; id: string; text: string }
   | { type: "setNum"; id: string; num: number }
   | { type: "patchReference"; id: string; patch: Partial<ReferenceValue> }
+  | { type: "setTrain"; patch: Partial<TrainSettings> }
   | { type: "reorder"; parentId: string; fromId: string; toId: string };
 
 function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
@@ -178,6 +180,9 @@ function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
           reference: b.reference ? { ...b.reference, ...action.patch } : b.reference,
         })),
       };
+
+    case "setTrain":
+      return { ...doc, train: { ...doc.train, ...action.patch } };
 
     case "reorder": {
       const parent = findBlock(doc.blocks, action.parentId);

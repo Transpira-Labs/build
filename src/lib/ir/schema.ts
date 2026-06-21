@@ -4,8 +4,8 @@
 // from the IR.
 
 import { z } from "zod";
+import { nanoid } from "nanoid";
 import {
-  BLOCKS,
   firstMain,
   type Block,
   type BlockKind,
@@ -135,11 +135,6 @@ export function toIR(doc: ProjectDoc): IR {
       variants: [],
     }));
 
-  const train = firstMain(doc, "train");
-  const setSize =
-    train?.children.find((c) => c.kind === "set_size")?.num ??
-    BLOCKS.set_size.number!.default;
-
   return {
     project: { id: doc.id, name: doc.name, version: doc.version },
     environment: {
@@ -150,9 +145,93 @@ export function toIR(doc: ProjectDoc): IR {
     tasks,
     train: {
       algorithm: "auto",
-      base_model: childText(train, "model") || "qwen3-8b",
-      set_size: setSize,
-      improvement: childText(train, "improvement"),
+      base_model: doc.train.model || "qwen3-8b",
+      set_size: doc.train.setSize,
+      improvement: doc.train.improvement,
     },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Reverse projection: IR → ProjectDoc
+// ---------------------------------------------------------------------------
+//
+// Rebuilds the editable block tree from an IR (the shape the Output pane shows
+// and Copy/Import use). The IR is lossy — no canvas positions or leaf ids — so
+// we synthesize fresh ids and lay the main blocks out in a tidy grid.
+
+const leaf = (kind: BlockKind, text: string): Block => ({
+  id: nanoid(8),
+  kind,
+  text,
+  children: [],
+});
+
+export function fromIR(ir: IR): ProjectDoc {
+  const blocks: Block[] = [];
+
+  blocks.push({
+    id: nanoid(8),
+    kind: "environment",
+    children: [
+      leaf("overview", ir.environment.description ?? ""),
+      leaf("setup", ir.environment.setup ?? ""),
+    ],
+  });
+
+  for (const t of ir.tools) {
+    blocks.push({
+      id: t.id || nanoid(8),
+      kind: "tool",
+      name: t.name,
+      children: [
+        leaf("goal", t.description ?? ""),
+        leaf("input", t.inputs ?? ""),
+        leaf("output", t.returns ?? ""),
+      ],
+    });
+  }
+
+  const taskBlocks: Block[] = ir.tasks.map((task) => {
+    const children: Block[] = [leaf("prompt", task.prompt ?? "")];
+    for (const r of task.references ?? []) {
+      children.push({
+        id: nanoid(8),
+        kind: "reference",
+        reference: { mode: r.mode, value: r.value },
+        children: [],
+      });
+    }
+    children.push({
+      id: nanoid(8),
+      kind: "scoring",
+      children: [
+        ...(task.rubric?.good ?? []).map((g) => leaf("good_outcome", g)),
+        ...(task.rubric?.bad ?? []).map((b) => leaf("bad_outcome", b)),
+      ],
+    });
+    return { id: task.id || nanoid(8), kind: "task", name: task.name, children };
+  });
+  blocks.push({ id: nanoid(8), kind: "taskset", children: taskBlocks });
+
+  // Tidy 3-column layout so imported main blocks don't overlap.
+  const COLS = 3;
+  const positioned = blocks.map((b, i) => ({
+    ...b,
+    x: 32 + (i % COLS) * 360,
+    y: 32 + Math.floor(i / COLS) * 470,
+  }));
+
+  return {
+    id: ir.project.id || nanoid(10),
+    name: ir.project.name || "Imported environment",
+    version: ir.project.version || 1,
+    blocks: positioned,
+    train: {
+      model: ir.train.base_model ?? "",
+      setSize: ir.train.set_size ?? 0,
+      improvement: ir.train.improvement ?? "",
+    },
+    connections: {},
   };
 }

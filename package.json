@@ -13,6 +13,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "lucide-react": "^1.21.0",
     "nanoid": "^5.1.15",
     "next": "16.2.9",
     "openai": "^6.44.0",

@@ -15,7 +15,8 @@ import { useKidsMode } from "@/state/kidsMode";
 import { FieldEditor } from "./FieldEditor";
 import { HelpPopover } from "./HelpPopover";
 import { previewOf } from "./preview";
-import { ChevronIcon, CloseIcon, GripIcon } from "./icons";
+import { BLOCK_ICONS } from "./blockIcons";
+import { ChevronDown, ChevronRight, GripVertical, Trash2 } from "lucide-react";
 
 export function BlockNode({
   block,
@@ -28,6 +29,7 @@ export function BlockNode({
 }) {
   const { dispatch } = useProject();
   const def = BLOCKS[block.kind];
+  const Icon = BLOCK_ICONS[block.kind];
   const [collapsed, setCollapsed] = useState(false);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -51,7 +53,7 @@ export function BlockNode({
   return (
     <div ref={setNodeRef} style={style} className="blk relative">
       <div
-        className={`blk-shadow overflow-hidden rounded-md border border-black/10 ${
+        className={`blk-shadow-sm overflow-hidden rounded-lg border border-black/10 ${
           accepts ? "ring-2 ring-accent ring-offset-1" : ""
         }`}
       >
@@ -59,9 +61,10 @@ export function BlockNode({
         <div
           {...attributes}
           {...listeners}
-          className="blk-header flex cursor-grab touch-none items-center gap-1.5 px-2 py-1 active:cursor-grabbing"
+          className="blk-header flex cursor-grab touch-none items-center gap-1.5 px-2 py-1.5 active:cursor-grabbing"
         >
-          <GripIcon className="h-3.5 w-3.5 shrink-0 text-white/40" />
+          <GripVertical className="size-3 shrink-0 text-white/40" />
+          <Icon className="size-3 shrink-0 text-white/90" />
           <span className="min-w-0 shrink truncate text-[11px] font-bold uppercase tracking-wide">
             {def.label}
           </span>
@@ -92,7 +95,11 @@ export function BlockNode({
             className="ml-auto shrink-0 rounded p-0.5 text-white/60 hover:bg-white/15 hover:text-white"
             aria-label={collapsed ? "Expand" : "Collapse"}
           >
-            <ChevronIcon className="h-3.5 w-3.5" open={!collapsed} />
+            {collapsed ? (
+              <ChevronRight className="size-3" />
+            ) : (
+              <ChevronDown className="size-3" />
+            )}
           </button>
           <button
             onPointerDown={stop}
@@ -100,7 +107,7 @@ export function BlockNode({
             className="shrink-0 rounded p-0.5 text-white/60 hover:bg-white/15 hover:text-white"
             aria-label={`Remove ${def.label}`}
           >
-            <CloseIcon className="h-3.5 w-3.5" />
+            <Trash2 className="size-3" />
           </button>
         </div>
 
@@ -138,7 +145,7 @@ function GroupBody({
         {/* Left arm of the C */}
         <div className="blk-arm w-2 shrink-0" />
         {/* Mouth — where child blocks live */}
-        <div ref={setNodeRef} className="blk-body flex-1 space-y-2 px-2 py-2">
+        <div ref={setNodeRef} className="blk-body min-w-0 flex-1 space-y-2 px-2 py-2">
           <SortableContext
             items={block.children.map((c) => c.id)}
             strategy={verticalListSortingStrategy}

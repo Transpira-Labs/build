@@ -29,7 +29,7 @@ import {
 } from "@/lib/blocks/model";
 import { useProject } from "@/state/project";
 import { Palette } from "./Palette";
-import { Canvas } from "./Canvas";
+import { Canvas, type View } from "./Canvas";
 
 type ActiveDrag =
   | { type: "palette-main"; kind: MainKind }
@@ -60,6 +60,9 @@ export function Builder() {
   const chainRef = useRef<string[]>([]);
   const [followers, setFollowers] = useState<string[]>([]);
   const [followDelta, setFollowDelta] = useState({ x: 0, y: 0 });
+
+  // Canvas pan/zoom.
+  const [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 });
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -151,9 +154,10 @@ export function Builder() {
       pointer.current.y >= rect.top &&
       pointer.current.y <= rect.bottom;
     if (!inside) return null;
+    // Screen → content coordinates (undo the canvas pan/zoom transform).
     return {
-      x: Math.max(0, pointer.current.x - rect.left + (canvasRef.current?.scrollLeft ?? 0) - 24),
-      y: Math.max(0, pointer.current.y - rect.top + (canvasRef.current?.scrollTop ?? 0) - 16),
+      x: Math.max(0, (pointer.current.x - rect.left - view.x) / view.scale - 24),
+      y: Math.max(0, (pointer.current.y - rect.top - view.y) / view.scale - 16),
     };
   }
 
@@ -243,8 +247,8 @@ export function Builder() {
       const head = doc.blocks.find((b) => b.id === a.id);
       if (!head) return;
 
-      let nx = (head.x ?? 0) + e.delta.x;
-      let ny = (head.y ?? 0) + e.delta.y;
+      let nx = (head.x ?? 0) + e.delta.x / view.scale;
+      let ny = (head.y ?? 0) + e.delta.y / view.scale;
 
       // Snap the head under a nearby (non-chain) block. Forgiving on height: drop
       // the head's top anywhere over the target's lower half — or just below it —
@@ -267,19 +271,27 @@ export function Builder() {
       const conn = doc.connections ?? {};
       let newParent: string | null = null;
       if (best) {
-        // Append to the bottom of the target's existing stack.
+        // Append to the bottom of the target's existing stack. Only follow
+        // links to blocks that still exist on the canvas — a stale connection
+        // (e.g. left over from a removed/migrated block) must not derail the
+        // walk into a non-existent id.
         let parentId = best.id;
         for (let i = 0; i < doc.blocks.length; i++) {
           const child = Object.keys(conn).find(
-            (c) => conn[c] === parentId && !chain.includes(c),
+            (c) =>
+              conn[c] === parentId &&
+              !chain.includes(c) &&
+              doc.blocks.some((b) => b.id === c),
           );
           if (!child) break;
           parentId = child;
         }
-        const p = doc.blocks.find((b) => b.id === parentId)!;
-        nx = p.x ?? 0;
-        ny = (p.y ?? 0) + heightOf(parentId);
-        newParent = parentId;
+        const p = doc.blocks.find((b) => b.id === parentId);
+        if (p) {
+          nx = p.x ?? 0;
+          ny = (p.y ?? 0) + heightOf(parentId);
+          newParent = parentId;
+        }
       }
 
       const dx = nx - (head.x ?? 0);
@@ -320,7 +332,7 @@ export function Builder() {
         window.removeEventListener("pointermove", trackPointer);
       }}
     >
-      <div className="flex h-full min-h-0">
+      <div className="flex h-full min-h-0 flex-1">
         <Palette />
         <Canvas
           activeChildKind={activeChildKind}
@@ -328,6 +340,8 @@ export function Builder() {
           followers={followers}
           followDelta={followDelta}
           onResize={reflow}
+          view={view}
+          setView={setView}
         />
       </div>
 

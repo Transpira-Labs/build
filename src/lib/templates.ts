@@ -7,7 +7,7 @@
 // i.e. something the backend could actually compile and train.
 
 import { nanoid } from "nanoid";
-import type { Block, BlockKind, ProjectDoc } from "@/lib/blocks/model";
+import { defaultTrain, type Block, type BlockKind, type ProjectDoc } from "@/lib/blocks/model";
 
 // ---------------------------------------------------------------------------
 // Block builders
@@ -47,6 +47,12 @@ function task(opts: {
   return block("task", { name: opts.name }, [text("prompt", prompt), scoring]);
 }
 
+/** The single Taskset main block that holds every task (tasks are groups now). */
+function taskset(tasks: Block[]): Block {
+  return block("taskset", {}, tasks);
+}
+
+/** Training is doc-level state (not a block); `doc()` lifts this into doc.train. */
 function train(model: string, setSize: number, improvement: string): Block {
   return block("train", {}, [
     text("model", model),
@@ -86,7 +92,38 @@ export interface Template {
 }
 
 function doc(name: string, mains: Block[]): ProjectDoc {
-  return { id: nanoid(10), name, version: 1, blocks: layout(mains) };
+  // Tasks are groups, not canvas mains — collect any listed inline into the one
+  // Taskset (placed where the first task appears), so the doc matches the
+  // current schema and needs no load-time migration.
+  const tasks = mains.filter((b) => b.kind === "task");
+  const trainBlock = mains.find((b) => b.kind === "train");
+  const blocks: Block[] = [];
+  let placed = false;
+  for (const b of mains) {
+    if (b.kind === "task") {
+      if (!placed) {
+        blocks.push(taskset(tasks));
+        placed = true;
+      }
+      continue;
+    }
+    if (b.kind === "train") continue; // lifted into doc.train below
+    blocks.push(b);
+  }
+
+  // Training is doc-level state, not a canvas block.
+  const fb = defaultTrain();
+  const train = trainBlock
+    ? {
+        model: trainBlock.children.find((c) => c.kind === "model")?.text?.trim() || fb.model,
+        setSize: trainBlock.children.find((c) => c.kind === "set_size")?.num ?? fb.setSize,
+        improvement:
+          trainBlock.children.find((c) => c.kind === "improvement")?.text?.trim() ||
+          fb.improvement,
+      }
+    : fb;
+
+  return { id: nanoid(10), name, version: 1, blocks: layout(blocks), train };
 }
 
 export const TEMPLATES: Template[] = [

@@ -43,14 +43,15 @@ body {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 }
 
-/* Subtle dotted workspace, the Scratch canvas feel on a warm cream base. */
+/* Dual line-grid workspace (major + minor) on a warm cream base. */
 .canvas-grid {
   background-color: oklch(0.94 0.016 82);
-  background-image: radial-gradient(
-    oklch(0.16 0.035 58 / 0.08) 1.2px,
-    transparent 1.2px
-  );
-  background-size: 22px 22px;
+  background-image:
+    linear-gradient(to right, oklch(0.16 0.035 58 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.16 0.035 58 / 0.05) 1px, transparent 1px),
+    linear-gradient(to right, oklch(0.16 0.035 58 / 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.16 0.035 58 / 0.025) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
 }
 
 /* ── Kids Mode: a friendlier skin ──────────────────────────────────────────
@@ -101,9 +102,12 @@ body {
   --bd: color-mix(in srgb, var(--block-color, #8c7b63) 70%, #2b1d10);
   --bl: color-mix(in srgb, var(--block-color, #8c7b63) 12%, #ffffff);
 }
-/* Hard offset shadow (depth) + a faint ambient one so it lifts off the canvas. */
+/* Chunky hard-offset shadow (friendly physical depth) + a soft ambient one. */
 .blk-shadow {
-  box-shadow: 0 2px 0 0 var(--bd), 0 7px 14px -9px rgba(60, 40, 20, 0.55);
+  box-shadow: 0 5px 0 0 var(--bd), 0 9px 22px -6px rgba(60, 40, 20, 0.22);
+}
+.blk-shadow-sm {
+  box-shadow: 0 3px 0 0 var(--bd), 0 5px 12px -6px rgba(60, 40, 20, 0.2);
 }
 .blk-header {
   background: var(--block-color, #8c7b63);
@@ -113,5 +117,26 @@ body {
   background: var(--bl);
 }
 .blk-arm {
+  background: var(--block-color, #8c7b63);
+}
+/* Scratch-style stack connectors (canvas main blocks only): a recessed socket
+   on top that the peg of the block above drops into. */
+.blk-socket {
+  position: absolute;
+  top: 0;
+  left: 22px;
+  width: 34px;
+  height: 10px;
+  border-radius: 5px 5px 0 0;
+  background: rgba(0, 0, 0, 0.26);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.32);
+}
+.blk-peg {
+  position: absolute;
+  bottom: -9px;
+  left: 22px;
+  width: 34px;
+  height: 10px;
+  border-radius: 0 0 6px 6px;
   background: var(--block-color, #8c7b63);
 }

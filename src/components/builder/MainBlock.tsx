@@ -13,14 +13,15 @@ import { useKidsMode } from "@/state/kidsMode";
 import { BlockNode } from "./BlockNode";
 import { HelpPopover } from "./HelpPopover";
 import { previewOf } from "./preview";
-import { ChevronIcon, CloseIcon, GripIcon } from "./icons";
+import { BLOCK_ICONS } from "./blockIcons";
+import { ChevronDown, ChevronRight, GripVertical, Trash2 } from "lucide-react";
 
 export function MainBlock({
   block,
   activeChildKind,
   following,
   onResize,
-  connected,
+  scale = 1,
 }: {
   block: Block;
   activeChildKind: BlockKind | null;
@@ -28,12 +29,13 @@ export function MainBlock({
   following: { x: number; y: number } | null;
   /** Called when this block's height changes, so connected blocks below reflow. */
   onResize: (id: string) => void;
-  /** Snapped beneath another block — show a subtle seam highlight at the top. */
-  connected: boolean;
+  /** Canvas zoom — drag transforms are divided by it (block lives in a scaled layer). */
+  scale?: number;
 }) {
   const { dispatch } = useProject();
   const { kids } = useKidsMode();
   const def = BLOCKS[block.kind];
+  const Icon = BLOCK_ICONS[block.kind];
   const [collapsed, setCollapsed] = useState(false);
 
   // Reflow blocks snapped below this one whenever its height changes (collapse /
@@ -79,7 +81,9 @@ export function MainBlock({
   const style: React.CSSProperties = {
     left: block.x ?? 0,
     top: block.y ?? 0,
-    transform: t ? `translate3d(${t.x}px, ${t.y}px, 0)` : undefined,
+    transform: t
+      ? `translate3d(${t.x / scale}px, ${t.y / scale}px, 0)`
+      : undefined,
     zIndex: isDragging || following ? 50 : undefined,
     width: 340,
     "--block-color": def.color,
@@ -93,15 +97,13 @@ export function MainBlock({
       }}
       data-block-id={block.id}
       style={style}
-      className="blk absolute select-none"
+      className="blk absolute select-none pt-[10px]"
     >
-      {/* Seam highlight where this block connects to the one above it. */}
-      {connected && (
-        <div className="pointer-events-none absolute inset-x-3 -top-0.5 z-10 h-1 rounded-full bg-accent/60 shadow-[0_0_6px_1px_rgba(190,90,46,0.45)]" />
-      )}
+      {/* Top socket — the peg of the block above drops into it. */}
+      <div className="blk-socket" />
 
       <div
-        className={`blk-shadow overflow-hidden rounded-lg border border-black/10 ${
+        className={`blk-shadow overflow-hidden rounded-2xl border border-black/10 ${
           accepts ? "ring-2 ring-accent ring-offset-1" : ""
         }`}
       >
@@ -109,9 +111,10 @@ export function MainBlock({
         <div
           {...listeners}
           {...attributes}
-          className="blk-header flex cursor-grab touch-none items-center gap-1.5 px-2.5 py-1.5 active:cursor-grabbing"
+          className="blk-header flex cursor-grab touch-none items-center gap-1.5 px-2.5 py-2 active:cursor-grabbing"
         >
-          <GripIcon className="h-4 w-4 shrink-0 text-white/40" />
+          <GripVertical className="size-3.5 shrink-0 text-white/40" />
+          <Icon className="size-3.5 shrink-0 text-white/90" />
           <span className="shrink-0 font-display text-xs font-bold uppercase tracking-wider">
             {def.label}
           </span>
@@ -140,7 +143,11 @@ export function MainBlock({
             className="ml-auto shrink-0 rounded p-0.5 text-white/60 hover:bg-white/15 hover:text-white"
             aria-label={collapsed ? "Expand" : "Collapse"}
           >
-            <ChevronIcon className="h-4 w-4" open={!collapsed} />
+            {collapsed ? (
+              <ChevronRight className="size-3.5" />
+            ) : (
+              <ChevronDown className="size-3.5" />
+            )}
           </button>
           <button
             onPointerDown={stop}
@@ -148,7 +155,7 @@ export function MainBlock({
             className="shrink-0 rounded p-0.5 text-white/60 hover:bg-white/15 hover:text-white"
             aria-label={`Remove ${def.label}`}
           >
-            <CloseIcon className="h-4 w-4" />
+            <Trash2 className="size-3.5" />
           </button>
         </div>
 
@@ -158,7 +165,7 @@ export function MainBlock({
               {/* Left arm */}
               <div className="blk-arm w-2.5 shrink-0" />
               {/* Mouth */}
-              <div ref={setDropRef} className="blk-body flex-1 space-y-2 px-2.5 py-2.5">
+              <div ref={setDropRef} className="blk-body min-w-0 flex-1 space-y-2 px-2.5 py-2.5">
                 <SortableContext
                   items={block.children.map((c) => c.id)}
                   strategy={verticalListSortingStrategy}
@@ -189,6 +196,9 @@ export function MainBlock({
           </>
         )}
       </div>
+
+      {/* Bottom peg — drops into the socket of the block below. */}
+      <div className="blk-peg" />
     </div>
   );
 }

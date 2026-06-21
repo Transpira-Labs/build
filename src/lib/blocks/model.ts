@@ -43,7 +43,9 @@ export type MainKind = "environment" | "tool" | "taskset" | "train";
 export type BlockRole = "main" | "group" | "leaf";
 export type ValueType = "text" | "choice" | "number" | "reference";
 
-export const MAIN_KINDS: MainKind[] = ["environment", "tool", "taskset", "train"];
+// Training is no longer a canvas block — it lives in `ProjectDoc.train` and is
+// edited only from the right-side panel. So it's intentionally absent here.
+export const MAIN_KINDS: MainKind[] = ["environment", "tool", "taskset"];
 
 // ---------------------------------------------------------------------------
 // Values + tree
@@ -52,6 +54,14 @@ export const MAIN_KINDS: MainKind[] = ["environment", "tool", "taskset", "train"
 export interface ReferenceValue {
   mode: "link" | "upload";
   value: string;
+}
+
+/** Training config — doc-level state, edited only from the right panel (not a
+ *  canvas block). Mirrors the old Train block's model / set_size / improvement. */
+export interface TrainSettings {
+  model: string;
+  setSize: number;
+  improvement: string;
 }
 
 export interface Block {
@@ -76,6 +86,8 @@ export interface ProjectDoc {
   version: number;
   /** Top-level main blocks, in z-order. */
   blocks: Block[];
+  /** Training config — not a block; edited from the right panel only. */
+  train: TrainSettings;
   /** UI-only: which main block each one is snapped beneath (childId -> parentId).
    *  Persisted so connected stacks survive reloads; ignored by the IR. */
   connections?: Record<string, string>;
@@ -383,8 +395,24 @@ export function makeMain(kind: MainKind, x: number, y: number): Block {
   return { ...makeBlock(kind), x, y };
 }
 
+/** Default training config, drawn from the model / set_size block metadata. */
+export function defaultTrain(): TrainSettings {
+  return {
+    model: BLOCKS.model.options?.[0]?.value ?? "qwen3-8b",
+    setSize: BLOCKS.set_size.number?.default ?? 500,
+    improvement: "",
+  };
+}
+
 export function emptyProject(name = "Untitled environment"): ProjectDoc {
-  return { id: nanoid(10), name, version: 1, blocks: [], connections: {} };
+  return {
+    id: nanoid(10),
+    name,
+    version: 1,
+    blocks: [],
+    train: defaultTrain(),
+    connections: {},
+  };
 }
 
 export function firstMain(doc: ProjectDoc, kind: MainKind): Block | undefined {
@@ -397,28 +425,79 @@ export function firstMain(doc: ProjectDoc, kind: MainKind): Block | undefined {
 
 /** Relocate top-level blocks that aren't main kinds into a proper parent.
  *  Legacy data: Task used to be a top-level block; now it nests in a Taskset.
- *  Called on load so old saved environments keep working. */
+ *  Called on load so old saved environments keep working. Also prunes the
+ *  snap-connection map down to links between blocks that still exist on the
+ *  canvas, so a migrated/removed block can't leave a dangling connection (which
+ *  would otherwise crash the drag-to-snap chain walk). */
 export function normalizeDoc(doc: ProjectDoc): ProjectDoc {
-  const strays = doc.blocks.filter((b) => BLOCKS[b.kind].role !== "main");
-  if (strays.length === 0) return doc;
-
-  const blocks = doc.blocks.filter((b) => BLOCKS[b.kind].role === "main");
-  for (const stray of strays) {
-    let host = blocks.find((m) => isAllowed(stray.kind, m.kind));
-    if (!host) {
-      const hostKind = MAIN_KINDS.find((k) =>
-        BLOCKS[k].accepts?.includes(stray.kind),
-      );
-      if (!hostKind) continue; // nowhere sensible to put it — drop it
-      host = makeMain(hostKind, stray.x ?? 40, stray.y ?? 40);
-      blocks.push(host);
+  // Drop any block whose id was already seen (legacy data could duplicate ids,
+  // which makes React keys collide).
+  const seen = new Set<string>();
+  const dedupe = (bs: Block[]): Block[] => {
+    const out: Block[] = [];
+    for (const b of bs) {
+      if (seen.has(b.id)) continue;
+      seen.add(b.id);
+      out.push({ ...b, children: dedupe(b.children) });
     }
-    const { x: _x, y: _y, ...nested } = stray;
-    void _x;
-    void _y;
-    host.children = [...host.children, nested];
+    return out;
+  };
+  doc = { ...doc, blocks: dedupe(doc.blocks) };
+
+  // Training is no longer a canvas block. Pull any legacy "train" block's
+  // settings into doc.train, drop it from the canvas, and ensure doc.train.
+  let train = doc.train;
+  const legacyTrain = doc.blocks.find((b) => b.kind === "train");
+  if (legacyTrain) {
+    if (!train) {
+      const fb = defaultTrain();
+      train = {
+        model: legacyTrain.children.find((c) => c.kind === "model")?.text?.trim() || fb.model,
+        setSize: legacyTrain.children.find((c) => c.kind === "set_size")?.num ?? fb.setSize,
+        improvement:
+          legacyTrain.children.find((c) => c.kind === "improvement")?.text?.trim() ||
+          fb.improvement,
+      };
+    }
+    doc = { ...doc, blocks: doc.blocks.filter((b) => b.kind !== "train") };
   }
-  return { ...doc, blocks };
+  doc = { ...doc, train: train ?? defaultTrain() };
+
+  const strays = doc.blocks.filter((b) => BLOCKS[b.kind].role !== "main");
+
+  let blocks = doc.blocks;
+  if (strays.length > 0) {
+    blocks = doc.blocks.filter((b) => BLOCKS[b.kind].role === "main");
+    for (const stray of strays) {
+      let host = blocks.find((m) => isAllowed(stray.kind, m.kind));
+      if (!host) {
+        const hostKind = MAIN_KINDS.find((k) =>
+          BLOCKS[k].accepts?.includes(stray.kind),
+        );
+        if (!hostKind) continue; // nowhere sensible to put it — drop it
+        host = makeMain(hostKind, stray.x ?? 40, stray.y ?? 40);
+        blocks.push(host);
+      }
+      const { x: _x, y: _y, ...nested } = stray;
+      void _x;
+      void _y;
+      host.children = [...host.children, nested];
+    }
+  }
+
+  // Drop connections whose child or parent is no longer a top-level block.
+  let connections = doc.connections;
+  if (connections) {
+    const ids = new Set(blocks.map((b) => b.id));
+    const pruned: Record<string, string> = {};
+    for (const [childId, parentId] of Object.entries(connections)) {
+      if (ids.has(childId) && ids.has(parentId)) pruned[childId] = parentId;
+    }
+    connections = pruned;
+  }
+
+  if (strays.length === 0 && connections === doc.connections) return doc;
+  return { ...doc, blocks, connections };
 }
 
 // ---------------------------------------------------------------------------
