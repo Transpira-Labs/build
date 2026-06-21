@@ -127,16 +127,29 @@ def main(argv: list[str] | None = None) -> int:
     result["deployed"] = True
     result["message"] = "deployed"
 
-    # `hud deploy` registers the env image but NOT its taskset. Sync the baked-in
-    # Taskset so the run page's `Taskset.from_api(env_name)` can find it on HUD.
+    # `hud deploy` registers the env image but NOT its taskset. Sync the baked-in Taskset
+    # so the run page's `Taskset.from_api(env_name)` can find it on HUD. CAPTURE the output
+    # so a failure is LOUD: this step used to fail silently (a too-old `hud` that can't import
+    # the env.py, a missing env registry, or 0 tasks collected) leaving "taskset not found"
+    # with no error anywhere. Surface the real reason in `taskset_error`.
     sync_cmd = [hud, "sync", "tasks", cb.ir.env_name, str(out / "env.py"), "--yes"]
-    sync_proc = subprocess.run(sync_cmd, stdout=sys.stderr, stderr=sys.stderr)
-    result["taskset_synced"] = sync_proc.returncode == 0
-    if sync_proc.returncode != 0:
-        result["message"] = "deployed, but taskset sync failed — the run page won't find tasks"
+    sync_proc = subprocess.run(sync_cmd, capture_output=True, text=True)
+    sync_out = (sync_proc.stdout or "") + (sync_proc.stderr or "")
+    sys.stderr.write(sync_out)  # keep the full sync log on stderr (Railway logs / logTail)
+    result["taskset"] = cb.ir.env_name
+    # Treat "collected 0 tasks" as a failure too — `hud sync` can exit 0 having uploaded nothing.
+    found_zero = "Found 0 task" in sync_out or "No Task objects found" in sync_out
+    result["taskset_synced"] = sync_proc.returncode == 0 and not found_zero
+    if result["taskset_synced"]:
+        result["message"] = "deployed and taskset synced"
+    else:
+        tail = [ln for ln in sync_out.splitlines() if ln.strip()][-6:]
+        result["taskset_error"] = "\n".join(tail) or f"`hud sync tasks` exited {sync_proc.returncode}"
+        result["message"] = "deployed, but TASKSET SYNC FAILED — the run page won't find tasks (see taskset_error)"
     print(json.dumps(result))
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from bridge_log import run
+    run("deploy_one", main)

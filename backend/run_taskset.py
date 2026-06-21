@@ -115,4 +115,5 @@ async def _run(
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from bridge_log import run
+    run("run_taskset", main)

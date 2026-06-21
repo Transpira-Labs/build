@@ -6,7 +6,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "pydantic>=2.7",
     "fastmcp>=2.0",
-    "hud-python>=0.6",
+    "hud-python>=0.6.7",  # v6 API: env.py uses `from hud import Taskset`; 0.5.x silently breaks sync
     "openai>=1.40",
     # HTTP service (server.py) so the web app can trigger deploys/evals remotely.
     "fastapi>=0.110",
