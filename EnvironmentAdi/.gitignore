@@ -11,3 +11,7 @@ runs/
 
 # Generated dashboard trace data (large; rebuild with `python -m environmentadi.capture`)
 dashboard/data.js
+
+# Bridge runtime (written by the app / orchestrator)
+inbox/
+dashboard/run_status.json

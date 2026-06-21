@@ -34,6 +34,11 @@ export function Dashboard() {
 
   // Copy a template into the user's own shelf, then open the copy to build off.
   function handleUseTemplate(t: Template) {
+    // Bench-ception is a runner over your other environments, not a block doc.
+    if (t.key === "benchception") {
+      router.push("/benchception");
+      return;
+    }
     const doc = t.build();
     saveEnvironment(doc);
     router.push(`/build/${doc.id}`);

@@ -369,4 +369,34 @@ export const TEMPLATES: Template[] = [
         ),
       ]),
   },
+  {
+    // A meta-environment: instead of opening the block editor, this routes to the
+    // Bench-ception runner, which kicks off a benchmark over the environments you
+    // have already built (the Dashboard branches on this key).
+    key: "benchception",
+    title: "Bench-ception",
+    blurb:
+      "Run a benchmark over the environments you've built — models compete to rebuild each one, a probe scores how good they are.",
+    tag: "Meta · benchmark",
+    color: "#C2611F",
+    build: () =>
+      doc("Bench-ception", [
+        environment(
+          "A meta-benchmark: every environment you have built becomes a spec that competing models (GPT, Qwen, Sonnet) must rebuild as a HUD environment; a probe agent is then run on each to score how well it was built.",
+          "Runs over your saved environments — build a few first, then launch it from the Bench-ception runner.",
+        ),
+        task({
+          name: "Build the environment",
+          prompt:
+            "Given an environment specification, produce a runnable HUD environment that realizes it.",
+          good: [
+            "Defines every tool and task from the spec",
+            "Grades the task per its rubric",
+            "Imports and runs cleanly",
+          ],
+          bad: ["Missing tools or tasks", "Grader crashes or is trivially passable"],
+        }),
+        train("Qwen/Qwen3-8B", 100, "Higher probe score on the rebuilt environments"),
+      ]),
+  },
 ];
