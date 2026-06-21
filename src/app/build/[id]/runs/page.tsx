@@ -16,6 +16,7 @@ import {
   Hammer,
   Loader2,
   Play,
+  RefreshCw,
   Rocket,
   Sparkles,
   TrendingUp,
@@ -26,6 +27,7 @@ import { BLOCKS, type ProjectDoc, type DeployInfo } from "@/lib/blocks/model";
 import { toIR } from "@/lib/ir/schema";
 import { toV1Blocks } from "@/lib/ir/v1";
 import { buildSignature } from "@/lib/buildSig";
+import { resyncTasks } from "@/lib/resync";
 import { runJob } from "@/lib/pollJob";
 
 // Mirrors the backend's DEFAULT_MODELS (a spanning weak→strong set).
@@ -87,6 +89,7 @@ type DeployResp = {
   logTail?: string;
   error?: string;
   taskset_synced?: boolean;
+  taskset?: string;
 };
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -161,7 +164,7 @@ export default function RunsPage() {
           <>
             {doc && <StalenessBanner doc={doc} deploy={deploy} id={id} />}
 
-            {doc && <HudRunPanel deploy={deploy} />}
+            {doc && <HudRunPanel doc={doc} deploy={deploy} />}
 
             {doc && <TrainPanel doc={doc} deploy={deploy} baseline={null} />}
           </>
@@ -209,7 +212,7 @@ function StalenessBanner({
           ...doc,
           deploy: {
             envName: data.env_name || deploy.envName,
-            tasksetName: data.env_name || deploy.tasksetName || deploy.envName,
+            tasksetName: data.taskset || deploy.tasksetName || data.env_name || deploy.envName,
             tasksetSynced: data.taskset_synced !== false,
             envUrl: envUrl ?? deploy.envUrl,
             version: data.version,
@@ -619,7 +622,7 @@ const traceTone = (status: string): string => {
   return "text-muted-foreground"; // pending / unknown
 };
 
-function HudRunPanel({ deploy }: { deploy: DeployInfo }) {
+function HudRunPanel({ doc, deploy }: { doc: ProjectDoc; deploy: DeployInfo }) {
   const tasksetName = deploy.tasksetName || deploy.envName;
   const [model, setModel] = useState("claude-sonnet-4-6");
   const [group, setGroup] = useState(3);
@@ -629,6 +632,29 @@ function HudRunPanel({ deploy }: { deploy: DeployInfo }) {
   const [traces, setTraces] = useState<Trace[]>([]);
   const [result, setResult] = useState<RunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncMsg, setResyncMsg] = useState<string | null>(null);
+
+  // Re-sync the taskset to HUD without rebuilding the env.
+  async function resync() {
+    setResyncing(true);
+    setResyncMsg(null);
+    const r = await resyncTasks(doc, tasksetName);
+    setResyncing(false);
+    if (r.taskset_synced) {
+      saveEnvironment({
+        ...doc,
+        deploy: {
+          ...deploy,
+          tasksetName: r.taskset || deploy.tasksetName,
+          tasksetSynced: true,
+        },
+      });
+      setResyncMsg(`Synced ${r.count ?? ""} task(s) — you can run now.`);
+    } else {
+      setResyncMsg(r.taskset_error || r.error || "Sync failed.");
+    }
+  }
 
   // Poll our job (status + the HUD job id) and, once we have it, the live traces.
   useEffect(() => {
@@ -720,10 +746,30 @@ function HudRunPanel({ deploy }: { deploy: DeployInfo }) {
       <p className="mt-0.5 text-xs text-muted-foreground">
         Runs every task in{" "}
         <span className="font-mono text-foreground/80">{tasksetName}</span> {group}× on HUD&apos;s
-        remote runtime, live. {deploy.tasksetSynced === false && (
-          <span className="text-amber-600">Taskset may not be synced — rebuild if no tasks run.</span>
-        )}
+        remote runtime, live.
       </p>
+
+      {deploy.tasksetSynced === false && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs">
+          <TriangleAlert className="size-3.5 shrink-0 text-amber-500" />
+          <span className="text-amber-800">
+            Taskset isn&apos;t synced — runs will find no tasks.
+          </span>
+          <button
+            onClick={resync}
+            disabled={resyncing}
+            className="ml-auto flex items-center gap-1.5 rounded-md border border-amber-400 bg-amber-100 px-2.5 py-1 font-semibold text-amber-900 hover:bg-amber-200 disabled:opacity-60"
+          >
+            {resyncing ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <RefreshCw className="size-3" />
+            )}
+            {resyncing ? "Syncing…" : "Sync tasks now"}
+          </button>
+        </div>
+      )}
+      {resyncMsg && <p className="mt-1.5 text-xs text-muted-foreground">{resyncMsg}</p>}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {MODELS.map((m) => (

@@ -74,7 +74,11 @@ async def _run(
 ) -> dict[str, Any]:
     from hud import Job, Taskset
     from hud.agents import create_agent
+    from hud.cli.utils.source import normalize_environment_name
 
+    # The taskset is registered under HUD's slugified env name (dashes); normalize
+    # so a stale underscore name from an older deploy still resolves.
+    name = normalize_environment_name(name)
     taskset = Taskset.from_api(name)
     if task_ids:
         wanted = set(task_ids)

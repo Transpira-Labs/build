@@ -113,7 +113,7 @@ export async function getJob(
 // Spawns the script, feeds `body` as JSON on stdin, resolves the parsed last
 // stdout line. Remote mode proxies to the synth service's matching endpoint.
 export async function runPythonOnce(
-  script: "job_traces",
+  script: "job_traces" | "sync_tasks",
   body: unknown,
 ): Promise<Record<string, unknown>> {
   const url = remoteUrl();

@@ -13,6 +13,7 @@ import {
   Hammer,
   Loader2,
   Play,
+  RefreshCw,
   TriangleAlert,
   X,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import { toIR } from "@/lib/ir/schema";
 import { toV1Blocks } from "@/lib/ir/v1";
 import { checkEnvironment } from "@/lib/check";
 import { buildSignature } from "@/lib/buildSig";
+import { resyncTasks } from "@/lib/resync";
 import { runJob } from "@/lib/pollJob";
 
 // Diagnostics that mean the build broke during *our* code-generation step (the
@@ -59,6 +61,8 @@ type DeployResponse = {
   taskset_synced?: boolean;
   /** The real reason the taskset sync failed (tail of the sync log). */
   taskset_error?: string;
+  /** The HUD-slugified taskset/registry name runs query (may differ from env_name). */
+  taskset?: string;
 };
 
 type Phase = "idle" | "blocked" | "deploying" | "done" | "error";
@@ -68,6 +72,27 @@ export function DeployButton() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<DeployResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resyncing, setResyncing] = useState(false);
+
+  // Re-run just the taskset sync (no rebuild / redeploy) after a sync failure.
+  async function retrySync() {
+    setResyncing(true);
+    const r = await resyncTasks(doc, result?.env_name);
+    setResyncing(false);
+    setResult((prev) =>
+      prev ? { ...prev, taskset_synced: r.taskset_synced, taskset_error: r.taskset_error } : prev,
+    );
+    if (r.taskset_synced && doc.deploy) {
+      dispatch({
+        type: "setDeploy",
+        deploy: {
+          ...doc.deploy,
+          tasksetName: r.taskset || doc.deploy.tasksetName,
+          tasksetSynced: true,
+        },
+      });
+    }
+  }
 
   async function build(attempt = 0) {
     const ir = toIR(doc);
@@ -98,8 +123,9 @@ export function DeployButton() {
           type: "setDeploy",
           deploy: {
             envName: data.env_name || "environment",
-            // The deploy syncs a taskset named after the env; runs query it.
-            tasksetName: data.env_name || "environment",
+            // Runs query the HUD-slugified taskset name (dashes), not the declared
+            // env name (which may use underscores) — fall back if absent.
+            tasksetName: data.taskset || data.env_name || "environment",
             tasksetSynced: data.taskset_synced !== false,
             envUrl,
             version: data.version,
@@ -227,6 +253,18 @@ export function DeployButton() {
                             </pre>
                           </details>
                         )}
+                        <button
+                          onClick={retrySync}
+                          disabled={resyncing}
+                          className="mt-2 flex items-center gap-1.5 rounded-md border border-amber-400 bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-200 disabled:opacity-60"
+                        >
+                          {resyncing ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="size-3" />
+                          )}
+                          {resyncing ? "Syncing tasks…" : "Retry taskset sync (no rebuild)"}
+                        </button>
                       </div>
                     </div>
                   )}

@@ -167,8 +167,14 @@ def main(argv: list[str] | None = None) -> int:
     # case. The JSONL needs nothing but `hud`. The platform resolves (env, id)
     # against the env's freshly-deployed build manifest and validates args.
     # See https://docs.hud.ai/v6/core/tasks (".json/.jsonl portable rows").
-    result["taskset"] = cb.ir.env_name
-    rows = _taskset_rows(cb.ir.env_name, cb.ir.taskset_calls)
+    # The platform registers the env under a slugified name (lowercase, `_`/spaces
+    # → `-`), so a task row's `env` and the taskset name must use THAT name or the
+    # upload fails with "No registry found for env '<underscored>'".
+    from hud.cli.utils.source import normalize_environment_name
+
+    reg_name = normalize_environment_name(cb.ir.env_name)
+    result["taskset"] = reg_name
+    rows = _taskset_rows(reg_name, cb.ir.taskset_calls)
     if not rows:
         result["taskset_synced"] = False
         result["taskset_error"] = "no task rows compiled from the project — add at least one Task"
@@ -179,20 +185,20 @@ def main(argv: list[str] | None = None) -> int:
     tasks_jsonl = out / "tasks.jsonl"
     tasks_jsonl.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
 
-    # `--yes` is deprecated; `hud sync tasks` no longer prompts. Run it
-    # non-interactively (DEVNULL stdin) so a stray confirmation can't block us.
-    sync_cmd = [hud, "sync", "tasks", cb.ir.env_name, str(tasks_jsonl)]
-    sync_proc = subprocess.run(sync_cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
-    sync_out = (sync_proc.stdout or "") + (sync_proc.stderr or "")
+    # `hud sync tasks` confirms via prompt_toolkit, which needs a real terminal —
+    # run it under a PTY that auto-answers "y" (see hud_cli). The CLI exits 0 even
+    # when the upload itself fails, so success is read from the output, not rc.
+    from hud_cli import run_sync, sync_succeeded
+
+    sync_cmd = [hud, "sync", "tasks", reg_name, str(tasks_jsonl)]
+    _rc, sync_out = run_sync(sync_cmd)
     sys.stderr.write(sync_out)  # keep the full sync log on stderr (Railway logs / logTail)
-    # Treat "collected 0 tasks" as a failure too — `hud sync` can exit 0 having uploaded nothing.
-    found_zero = "Found 0 task" in sync_out or "No Task objects found" in sync_out
-    result["taskset_synced"] = sync_proc.returncode == 0 and not found_zero
+    result["taskset_synced"] = sync_succeeded(sync_out)
     if result["taskset_synced"]:
         result["message"] = f"deployed and synced {len(rows)} task(s)"
     else:
         tail = [ln for ln in sync_out.splitlines() if ln.strip()][-8:]
-        result["taskset_error"] = "\n".join(tail) or f"`hud sync tasks` exited {sync_proc.returncode}"
+        result["taskset_error"] = "\n".join(tail) or "`hud sync tasks` did not report success"
         result["message"] = "deployed, but TASKSET SYNC FAILED — the run page won't find tasks (see taskset_error)"
     print(json.dumps(result))
     return 0

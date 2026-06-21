@@ -119,6 +119,11 @@ class JobTracesReq(BaseModel):
     job_id: str
 
 
+class SyncTasksReq(BaseModel):
+    blocks: list[Any]
+    env_name: str | None = None
+
+
 class TrainReq(BaseModel):
     blocks: list[Any] | None = None
     taskset: str | None = None
@@ -204,6 +209,14 @@ def run(req: RunReq, x_synth_secret: str | None = Header(default=None)) -> dict[
 def job_traces(req: JobTracesReq, x_synth_secret: str | None = Header(default=None)) -> dict[str, Any]:
     _check(x_synth_secret)
     return _run_script("job_traces.py", {"job_id": req.job_id}, [])
+
+
+@app.post("/sync-tasks")
+def sync_tasks(req: SyncTasksReq, x_synth_secret: str | None = Header(default=None)) -> dict[str, Any]:
+    _check(x_synth_secret)
+    if not req.blocks:
+        raise HTTPException(status_code=400, detail="blocks[] required")
+    return _run_script("sync_tasks.py", {"blocks": req.blocks, "env_name": req.env_name}, [])
 
 
 @app.get("/jobs/{job_id}")

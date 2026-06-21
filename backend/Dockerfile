@@ -10,7 +10,7 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY synth ./synth
 # All bridge scripts the service spawns, plus the shared crash-guard they import.
-COPY deploy_one.py eval_one.py run_taskset.py train_one.py job_traces.py bridge_log.py server.py ./
+COPY deploy_one.py eval_one.py run_taskset.py train_one.py job_traces.py sync_tasks.py hud_cli.py bridge_log.py server.py ./
 RUN pip install --no-cache-dir .
 
 # Railway/Render set $PORT; default to 8000 locally.
