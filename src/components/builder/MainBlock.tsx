@@ -103,6 +103,9 @@ export function MainBlock({
     const axis = (e.currentTarget as HTMLElement).dataset.axis as "x" | "y" | "xy";
     e.stopPropagation();
     e.preventDefault();
+    // Raise the block above its neighbours so an expansion that overlaps a
+    // pre-existing block renders on top of it (z-order follows array order).
+    dispatch({ type: "bringToFront", id: block.id });
     resizeDrag.current = {
       axis,
       x: e.clientX,
