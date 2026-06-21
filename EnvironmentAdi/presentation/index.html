@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>bench-ception · a HUD env that benchmarks building HUD envs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --cream:#FBF5EC; --cream-2:#F6EDDF; --paper:#FFFDF8;
+    --ink:#33271F; --ink-2:#6A5746; --line:#E6D8C5;
+    --burnt:#C2611F; --burnt-2:#A44E14; --burnt-soft:#F0DAC4;
+    --teal:#5E7C6E; --gold:#D9A441;
+    --shadow:0 1px 2px rgba(51,39,31,.06),0 8px 28px rgba(51,39,31,.08);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--cream); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,serif; font-size:18px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,h4,.mono-label{font-family:"Montserrat",system-ui,sans-serif}
+  code,.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 28px}
+  section{padding:78px 0;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:"Montserrat";font-weight:700;letter-spacing:.18em;
+    text-transform:uppercase;font-size:12px;color:var(--burnt)}
+  h2{font-size:34px;font-weight:800;line-height:1.15;margin:.35em 0 .2em;letter-spacing:-.01em}
+  .lede{font-size:20px;color:var(--ink-2);max-width:62ch}
+  .reveal{opacity:0;transform:translateY(16px);transition:opacity .7s ease,transform .7s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  /* hero */
+  .hero{background:
+      radial-gradient(900px 420px at 78% -8%,var(--burnt-soft),transparent 60%),
+      linear-gradient(180deg,var(--cream-2),var(--cream));
+    padding:104px 0 86px;border-bottom:1px solid var(--line)}
+  .hero h1{font-size:74px;font-weight:800;letter-spacing:-.03em;margin:.12em 0 .1em;line-height:.98}
+  .hero h1 .dot{color:var(--burnt)}
+  .hero .sub{font-size:23px;color:var(--ink-2);max-width:60ch}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+  .chip{font-family:"Montserrat";font-weight:600;font-size:13px;background:var(--paper);
+    border:1px solid var(--line);border-radius:999px;padding:7px 14px;box-shadow:var(--shadow)}
+  .chip b{color:var(--burnt-2)}
+
+  /* nested ception diagram */
+  .box{border-radius:16px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--shadow)}
+  .ception{padding:22px}
+  .ception .tag{font-family:"Montserrat";font-weight:700;font-size:12px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--burnt);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .ring{border:2px dashed var(--burnt);border-radius:18px;padding:18px;background:linear-gradient(180deg,#fff,#fffaf2)}
+  .ring.lvl2{border-style:solid;border-color:var(--teal);background:linear-gradient(180deg,#fbfdfb,#f3f7f3)}
+  .ring.lvl3{border-color:var(--gold);background:linear-gradient(180deg,#fffdf5,#fcf6e6)}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .slot{flex:1 1 150px;background:var(--cream);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .slot .k{font-family:"Montserrat";font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+  .slot .v{font-weight:600;margin-top:3px}
+  .ring-label{font-family:"Montserrat";font-weight:700;font-size:13px;color:var(--ink-2);margin:0 0 10px}
+  .ring-label .pill{background:var(--burnt);color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;margin-right:8px}
+  .ring.lvl2 .ring-label .pill{background:var(--teal)}
+  .ring.lvl3 .ring-label .pill{background:var(--gold);color:#3a2c00}
+
+  /* flow */
+  .flow{display:grid;grid-template-columns:1fr;gap:16px;margin-top:14px}
+  .stage{display:grid;grid-template-columns:46px 1fr;gap:16px;align-items:start}
+  .num{width:46px;height:46px;border-radius:50%;background:var(--burnt);color:#fff;
+    font-family:"Montserrat";font-weight:800;display:grid;place-items:center;font-size:18px}
+  .stage h4{margin:.2em 0 .15em;font-size:18px}
+  .stage p{margin:0;color:var(--ink-2);font-size:16px}
+  .stage.muted .num{background:var(--ink-2);opacity:.5}
+
+  /* leaderboard */
+  .lb{display:grid;gap:12px;margin-top:8px}
+  .bar-row{display:grid;grid-template-columns:210px 1fr 60px;gap:16px;align-items:center}
+  .bar-name{font-family:"Montserrat";font-weight:600;font-size:15px}
+  .bar-name .role{display:block;font-size:11px;color:var(--burnt-2);font-weight:700;letter-spacing:.04em}
+  .track{height:34px;background:var(--cream-2);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .fill{height:100%;width:0;border-radius:8px 0 0 8px;transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+  .fill.gold{background:linear-gradient(90deg,#E2B24E,#D9A441)}
+  .fill.std{background:linear-gradient(90deg,#D2773A,#C2611F)}
+  .bar-val{font-family:"JetBrains Mono";font-weight:500;text-align:right}
+
+  /* code / spec */
+  pre{background:#2b2118;color:#f4e9da;border-radius:14px;padding:20px 22px;overflow:auto;
+    font-family:"JetBrains Mono";font-size:14px;line-height:1.55;box-shadow:var(--shadow);margin:0}
+  pre .key{color:#E6B873}.tk-str{color:#A8C39A}.tk-num{color:#E89B6C}.tk-cm{color:#8a7a68}
+
+  /* cards grid */
+  .grid{display:grid;gap:18px}
+  .grid.c3{grid-template-columns:repeat(3,1fr)}
+  .grid.c2{grid-template-columns:repeat(2,1fr)}
+  .card{padding:20px 22px}
+  .card h4{margin:.1em 0 .3em;font-size:17px;display:flex;gap:9px;align-items:center}
+  .card p{margin:0;color:var(--ink-2);font-size:15.5px}
+  .ok{color:var(--teal)} .no{color:var(--burnt-2)}
+  .tagline{font-family:"Montserrat";font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+
+  table.roster{width:100%;border-collapse:collapse;margin-top:8px;background:var(--paper);
+    border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+  table.roster th,table.roster td{text-align:left;padding:14px 18px;border-bottom:1px solid var(--line);font-size:15.5px}
+  table.roster th{font-family:"Montserrat";font-weight:700;font-size:12px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--ink-2);background:var(--cream-2)}
+  table.roster tr:last-child td{border-bottom:none}
+  table.roster .model{font-family:"JetBrains Mono";font-size:14px;color:var(--burnt-2)}
+
+  .status-pill{display:inline-block;font-family:"Montserrat";font-weight:700;font-size:11px;
+    padding:3px 9px;border-radius:6px}
+  .s-done{background:#e2efe4;color:#2f5c3e}.s-block{background:#f6dfd2;color:#a4400f}.s-next{background:#f3e6c4;color:#7a5a14}
+
+  /* builder artifact cards */
+  .builds{display:grid;gap:18px;margin-top:24px}
+  .build{padding:18px 20px 20px}
+  .bhead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .bname{font-family:"JetBrains Mono";font-weight:500;font-size:16px;color:var(--ink)}
+  .role-tag{font-family:"Montserrat";font-weight:700;font-size:10px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--ink-2);background:var(--cream-2);border:1px solid var(--line);
+    border-radius:6px;padding:3px 8px;margin-left:6px;vertical-align:middle}
+  .role-tag.gold-tag{color:#7a5a14;background:#f7ecca;border-color:#e8d49a}
+  .badges{display:flex;align-items:center;gap:10px}
+  .sc{font-family:"Montserrat";font-weight:800;font-size:18px;color:#fff;background:var(--burnt);
+    border-radius:8px;padding:4px 12px}
+  .sc.gold{background:linear-gradient(90deg,#E2B24E,#D9A441);color:#3a2c00}
+  .meta{font-family:"Montserrat";font-weight:700;font-size:11px;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--ink-2)}
+  pre.code{font-size:13px;line-height:1.5;margin:0}
+  .why{margin:13px 0 0;color:var(--ink-2);font-size:15px}
+  .why b{color:var(--ink)}
+  footer{padding:46px 0;color:var(--ink-2);font-size:14px;text-align:center}
+  .footnote{color:var(--ink-2);font-size:13.5px;margin-top:18px;font-style:italic}
+  @media(max-width:820px){
+    .hero h1{font-size:52px}.grid.c3,.grid.c2{grid-template-columns:1fr}
+    .bar-row{grid-template-columns:130px 1fr 48px}.bar-name{font-size:13px}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">EnvironmentAdi · HUD SDK benchmark</div>
+    <h1>bench&#8209;ception<span class="dot">.</span></h1>
+    <p class="sub">A HUD environment that benchmarks how well a model can <b>build a HUD environment</b> — graded by running a probe agent <i>inside its own grader</i>. A benchmark, inside a benchmark.</p>
+    <div class="chips">
+      <span class="chip"><b>4</b>&nbsp; builder models</span>
+      <span class="chip"><b>nested</b>&nbsp; HUD eval in the grader</span>
+      <span class="chip"><b>verified</b>&nbsp; live on the gateway</span>
+      <span class="chip">phase 1 · <b>eval-only</b></span>
+    </div>
+  </div>
+</header>
+
+<!-- THE IDEA -->
+<section>
+  <div class="wrap reveal">
+    <div class="eyebrow">The idea</div>
+    <h2>One spec in. Four environments out. A probe judges them.</h2>
+    <p class="lede">There is no single “correct” environment for a spec, so we don’t grade against an answer key. Instead, building an environment <i>is itself</i> the task — modeled as a HUD environment whose agent is a builder model and whose reward comes from a nested HUD eval.</p>
+
+    <div class="box ception reveal" style="margin-top:26px">
+      <div class="tag">▣ bench&#8209;ception.py — a HUD Environment</div>
+      <div class="ring">
+        <div class="ring-label"><span class="pill">outer env</span> task = the spec · agent = a builder model</div>
+        <div class="row">
+          <div class="slot"><div class="k">prompt</div><div class="v">the rough JSON spec</div></div>
+          <div class="slot"><div class="k">agent</div><div class="v">GPT&nbsp;/&nbsp;Qwen&nbsp;/&nbsp;Sonnet&nbsp;/&nbsp;Opus</div></div>
+          <div class="slot"><div class="k">action</div><div class="v">returns a HUD env module</div></div>
+        </div>
+        <div class="ring lvl2" style="margin-top:16px">
+          <div class="ring-label"><span class="pill">grader</span> validate + run the submitted environment</div>
+          <div class="ring lvl3">
+            <div class="ring-label"><span class="pill">nested eval</span> a probe agent runs on the just-built env</div>
+            <div class="row">
+              <div class="slot"><div class="k">probe</div><div class="v">gpt-4o-mini <span style="color:var(--ink-2);font-weight:400">(Qwen3-8B intended)</span></div></div>
+              <div class="slot"><div class="k">×5 rollouts</div><div class="v">averaged → stable reward</div></div>
+              <div class="slot"><div class="k">reward</div><div class="v">mean probe score, 0–1</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="footnote">The reward of the outer environment is produced by running a full HUD evaluation inside its grader. That nesting is the “ception” — and it runs, live.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FLOW -->
+<section>
+  <div class="wrap reveal">
+    <div class="eyebrow">The pipeline</div>
+    <h2>How a builder earns its score</h2>
+    <div class="flow">
+      <div class="stage"><div class="num">1</div><div>
+        <h4>Spec → builders</h4>
+        <p>One rough JSON spec is handed to every builder model: GPT (gpt-5.5), Qwen (qwen3-coder), Sonnet (claude-sonnet-4-6), and the golden author Claude&nbsp;Opus&nbsp;4.8.</p></div></div>
+      <div class="stage"><div class="num">2</div><div>
+        <h4>Each builds a HUD environment</h4>
+        <p>The builder returns a runnable module — an <code>Environment</code>, <code>@env.template</code> tasks, and a <code>tasks=[…]</code> list. The grader validates it loads.</p></div></div>
+      <div class="stage"><div class="num">3</div><div>
+        <h4>A probe is evaluated on it</h4>
+        <p>Inside the grader, a probe agent runs the freshly built environment 5× and the rewards are averaged — a nested HUD eval producing the outer reward.</p></div></div>
+      <div class="stage muted"><div class="num">4</div><div>
+        <h4>Phase 2 · train, then judge on the golden env</h4>
+        <p>A trainee will be RL-trained on each builder’s env, then scored on Opus’s golden benchmark. Whichever env trains the best trainee wins. <span class="status-pill s-block">blocked · Tinker</span></p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- LEADERBOARD -->
+<section>
+  <div class="wrap reveal">
+    <div class="eyebrow">Live result · probe = gpt-4o-mini · group = 5</div>
+    <h2>Phase&nbsp;1 leaderboard</h2>
+    <p class="lede">A real run on the HUD gateway. The signal is grader quality and coverage: Opus expanded the one-line spec into <b>three varied tasks</b> with a robust, case-insensitive grader; the single-task builders score lower — and qwen’s grader actually crashes on any non-numeric reply.</p>
+    <div class="lb" id="lb">
+      <div class="bar-row"><div class="bar-name">claude-opus-4-8<span class="role">golden author · 3 tasks</span></div><div class="track"><div class="fill gold" data-w="67"></div></div><div class="bar-val">0.67</div></div>
+      <div class="bar-row"><div class="bar-name">claude-sonnet-4-6<span class="role">Sonnet builder</span></div><div class="track"><div class="fill std" data-w="60"></div></div><div class="bar-val">0.60</div></div>
+      <div class="bar-row"><div class="bar-name">gpt-5.5<span class="role">GPT builder</span></div><div class="track"><div class="fill std" data-w="40"></div></div><div class="bar-val">0.40</div></div>
+      <div class="bar-row"><div class="bar-name">qwen3-coder<span class="role">Qwen builder</span></div><div class="track"><div class="fill std" data-w="40"></div></div><div class="bar-val">0.40</div></div>
+    </div>
+    <p class="footnote">Phase 1 is a “does it work” check, not the final benchmark — one trivial spec, no training yet, and single-rollout scores are noisy (averaged ×5 here). Richer specs + Phase-2 training are what separate builders meaningfully.</p>
+  </div>
+</section>
+
+<!-- BUILDER ARTIFACTS -->
+<section>
+  <div class="wrap reveal">
+    <div class="eyebrow">The artifacts</div>
+    <h2>Exactly what each builder wrote</h2>
+    <p class="lede">Same spec, four different environments. This is the real, unedited code each model submitted in the run above — and it explains the scores.</p>
+
+    <div class="builds">
+      <article class="box build reveal">
+        <div class="bhead">
+          <div class="bname">claude-opus-4-8 <span class="role-tag gold-tag">golden author</span></div>
+          <div class="badges"><span class="sc gold">0.67</span><span class="meta">3 tasks</span></div>
+        </div>
+<pre class="code">from hud import Environment
+
+
+env = Environment(name="letter-count")
+
+
+@env.template()
+async def letter_count(word: str = "strawberry", letter: str = "r"):
+    answer = yield f"How many '{letter}'s are in '{word}'? Reply with just the number."
+    try:
+        value = int(str(answer).strip())
+    except (ValueError, TypeError):
+        yield 0.0
+        return
+    yield 1.0 if value == word.lower().count(letter.lower()) else 0.0
+
+
+tasks = [
+    letter_count(word="strawberry", letter="r"),
+    letter_count(word="mississippi", letter="s"),
+    letter_count(word="banana", letter="a"),
+]</pre>
+        <p class="why"><b>Why it led:</b> generalized one example into three varied test cases, parsed safely, and graded case-insensitively — the most thorough, hardest-to-fluke environment.</p>
+      </article>
+
+      <article class="box build reveal">
+        <div class="bhead">
+          <div class="bname">claude-sonnet-4-6 <span class="role-tag">Sonnet builder</span></div>
+          <div class="badges"><span class="sc">0.60</span><span class="meta">1 task</span></div>
+        </div>
+<pre class="code">from hud import Environment
+
+
+env = Environment(name="letter-count")
+
+
+@env.template()
+async def count_letter(word: str = "strawberry", letter: str = "r", expected: int = 3):
+    prompt = f"How many '{letter}'s are in '{word}'? Reply with just the number."
+    answer = yield prompt
+    try:
+        count = int(answer.strip())
+        yield 1.0 if count == expected else 0.0
+    except (ValueError, AttributeError):
+        yield 0.0
+
+
+tasks = [
+    count_letter(word="strawberry", letter="r", expected=3),
+]</pre>
+        <p class="why"><b>Solid:</b> wraps parsing in try/except so a malformed answer scores 0 instead of crashing — but only one test case.</p>
+      </article>
+
+      <article class="box build reveal">
+        <div class="bhead">
+          <div class="bname">gpt-5.5 <span class="role-tag">GPT builder</span></div>
+          <div class="badges"><span class="sc">0.40</span><span class="meta">1 task</span></div>
+        </div>
+<pre class="code">from hud import Environment
+
+env = Environment(name="letter-count")
+
+
+@env.template()
+async def count_letter(word: str = "strawberry", letter: str = "r"):
+    answer = yield f"How many '{letter}'s are in '{word}'? Reply with just the number."
+    yield 1.0 if str(answer).strip() == str(word.count(letter)) else 0.0
+
+
+tasks = [count_letter(word="strawberry", letter="r")]</pre>
+        <p class="why"><b>Minimal:</b> computes the count dynamically (good), but an exact string compare means any extra word in the reply fails — and one task only.</p>
+      </article>
+
+      <article class="box build reveal">
+        <div class="bhead">
+          <div class="bname">qwen3-coder <span class="role-tag">Qwen builder</span></div>
+          <div class="badges"><span class="sc">0.40</span><span class="meta">1 task · brittle</span></div>
+        </div>
+<pre class="code">from hud import Environment
+env = Environment(name="LetterCount")
+
+@env.template()
+async def count_letter(word: str = "strawberry", letter: str = "r"):
+    answer = yield f"How many '{letter}'s are in '{word}'? Reply with just the number."
+    yield 1.0 if int(answer) == word.count(letter) else 0.0
+
+tasks = [count_letter(word="strawberry", letter="r")]</pre>
+        <p class="why"><b>Fragile:</b> <code>int(answer)</code> with no try/except — any non-numeric reply raises inside the grader, so the rollout errors straight to 0.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- SPEC -->
+<section>
+  <div class="wrap reveal">
+    <div class="eyebrow">The input</div>
+    <h2>The spec every builder receives</h2>
+    <p class="lede">Currently one shared, intentionally simple spec — enough to prove the loop end-to-end.</p>
+    <pre style="margin-top:22px"><span class="tk-cm"># handed verbatim to GPT, Qwen, Sonnet and Opus</span>
+{
+  <span class="key">"name"</span>: <span class="tk-str">"Letter Count"</span>,
+  <span class="key">"objective"</span>: <span class="tk-str">"Count how many times a given letter appears in a word."</span>,
+  <span class="key">"inputs"</span>: <span class="tk-str">"A word and a target letter."</span>,
+  <span class="key">"outputs"</span>: <span class="tk-str">"A single integer: the count."</span>,
+  <span class="key">"tasks"</span>: [
+    {
+      <span class="key">"prompt"</span>: <span class="tk-str">"How many 'r's are in 'strawberry'? Reply with just the number."</span>,
+      <span class="key">"reward"</span>: <span class="tk-str">"answer == 3 -> 1.0 else 0.0"</span>
+    }
+  ]
+}</pre>
+  </div>
+</section>
+
+<!-- ROSTER -->
+<section>
+  <div class="wrap reveal">
+    <div class="eyebrow">Roster &amp; roles</div>
+    <h2>Who plays which part</h2>
+    <table class="roster">
+      <thead><tr><th>Role</th><th>Model</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>GPT builder</td><td class="model">gpt-5.5</td><td>stands in for gpt-oss-120b (Tinker route down)</td></tr>
+        <tr><td>Qwen builder</td><td class="model">qwen3-coder</td><td>stands in for qwen3-235b-instruct (Tinker down)</td></tr>
+        <tr><td>Sonnet builder</td><td class="model">claude-sonnet-4-6</td><td>working</td></tr>
+        <tr><td>Golden author</td><td class="model">claude-opus-4-8</td><td>writes the held-out benchmark env</td></tr>
+        <tr><td>Probe / trainee</td><td class="model">gpt-4o-mini</td><td>intended Qwen3-8B — not sampleable yet (Tinker)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- REALITY CHECK -->
+<section>
+  <div class="wrap reveal">
+    <div class="eyebrow">Reality check</div>
+    <h2>What the live infrastructure actually allows</h2>
+    <p class="lede">The design is honest about HUD’s current limits — substitutions are one constant in <code>config.py</code>, swappable the moment the backend recovers.</p>
+    <div class="grid c2" style="margin-top:24px">
+      <div class="box card reveal"><h4><span class="no">✕</span> Gemma 4 can’t be trained</h4><p><code>is_trainable: false</code> on HUD, and gemini agent-type. The intended trainee can’t actually be RL-trained — so Phase 1 uses a working probe instead.</p></div>
+      <div class="box card reveal"><h4><span class="no">✕</span> Tinker backend is down</h4><p>Every trainable model (Qwen3-8B, Llama-3.2-3B, gpt-oss…) routes through Tinker, which 400s with “SDK version no longer supported.” Blocks training <i>and</i> sampling those models.</p></div>
+      <div class="box card reveal"><h4><span class="ok">✓</span> Nested eval works</h4><p>Running a full HUD evaluation inside a HUD env’s grader — the core risk — was verified end-to-end on the gateway. The “ception” is real, not a slide.</p></div>
+      <div class="box card reveal"><h4><span class="ok">✓</span> Builder = agent works</h4><p>Each builder is an ordinary HUD agent, so the whole thing runs as a standard <code>hud eval</code> with traces on hud.ai — and a builder could later be RL-trained too.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ROADMAP -->
+<section style="border-bottom:none">
+  <div class="wrap reveal">
+    <div class="eyebrow">Roadmap</div>
+    <h2>From “it runs” to a real ranking</h2>
+    <div class="grid c3" style="margin-top:22px">
+      <div class="box card reveal"><div class="tagline" style="color:var(--teal)">Done</div><h4>Phase 1 · eval-only</h4><p>bench-ception as a full-nested HUD env, verified across the real roster with averaged probe rollouts.</p></div>
+      <div class="box card reveal"><div class="tagline" style="color:var(--gold)">Next</div><h4>Harder specs</h4><p>Multi-task, tool-using, ambiguous-grading specs so builders have room to actually differentiate.</p></div>
+      <div class="box card reveal"><div class="tagline" style="color:var(--burnt-2)">Phase 2</div><h4>Train &amp; transfer</h4><p>Train a trainee on each env, judge it on Opus’s golden benchmark — the true bench-ception signal.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">EnvironmentAdi · bench-ception — built on the HUD SDK (v6). Phase 1 figures from a live gateway run.</div>
+</footer>
+
+<script>
+  // reveal on scroll
+  const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}}),{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+  // animate leaderboard bars when in view
+  const lb=document.getElementById('lb');
+  const io2=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting){
+    e.target.querySelectorAll('.fill').forEach(f=>f.style.width=f.dataset.w+'%');io2.unobserve(e.target);}}),{threshold:.3});
+  io2.observe(lb);
+</script>
+</body>
+</html>

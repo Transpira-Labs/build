@@ -1,0 +1,20 @@
+{
+  "project": { "id": "sql-lookup", "name": "SQL Lookup", "version": 1 },
+  "environment": {
+    "objective": "Answer a question by querying a small in-memory table.",
+    "inputs": "A natural-language question over a known schema.",
+    "outputs": "The scalar answer to the question."
+  },
+  "tools": [
+    { "id": "run_sql", "name": "run_sql", "description": "Execute a read-only SQL query against the seeded table and return rows." }
+  ],
+  "tasks": [
+    {
+      "id": "max-salary",
+      "name": "Highest salary",
+      "prompt": "In the employees table, what is the highest salary? Reply with the number.",
+      "reward": { "mode": "guided", "spec": "answer == 95000 -> 1.0 else 0.0" }
+    }
+  ],
+  "train": { "algorithm": "grpo", "base_model": "qwen3-8b", "episodes": 300, "eval_split": 0.2 }
+}

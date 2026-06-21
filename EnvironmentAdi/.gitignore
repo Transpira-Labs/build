@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Generated artifacts (regenerated each run)
+.generated/
+runs/
+.scratch/
+
+# Generated dashboard trace data (large; rebuild with `python -m environmentadi.capture`)
+dashboard/data.js

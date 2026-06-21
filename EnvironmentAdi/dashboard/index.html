@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>bench-ception · monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --cream:#FBF5EC;--cream-2:#F4EADB;--paper:#FFFDF8;--ink:#33271F;--ink-2:#6A5746;
+    --line:#E6D8C5;--burnt:#C2611F;--burnt-2:#A44E14;--teal:#5E7C6E;--sage:#6f8f5f;--gold:#D9A441;
+    --red:#b23b2e;--shadow:0 1px 2px rgba(51,39,31,.05),0 6px 22px rgba(51,39,31,.07);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);
+    font-family:"Source Serif 4",Georgia,serif;font-size:15px;line-height:1.55}
+  h1,h2,h3,h4,.mono-h,.tag,button{font-family:"Montserrat",system-ui,sans-serif}
+  code,pre,.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+  .topbar{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,#fff,#fbf3e8);
+    border-bottom:1px solid var(--line);padding:14px 22px;display:flex;justify-content:space-between;
+    align-items:center;gap:18px;box-shadow:var(--shadow)}
+  .topbar h1{font-size:20px;font-weight:800;margin:0;letter-spacing:-.01em}
+  .topbar h1 .d{color:var(--burnt)}
+  .meta{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);font-family:"JetBrains Mono"}
+  .meta b{color:var(--burnt-2);font-weight:600}
+  .app{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 56px)}
+  /* sidebar */
+  .rail{border-right:1px solid var(--line);background:#fbf4ea;padding:16px 12px}
+  .rail .lbl{font-family:"Montserrat";font-weight:700;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-2);margin:4px 8px 12px}
+  .spec-item{padding:11px 12px;border-radius:11px;cursor:pointer;border:1px solid transparent;margin-bottom:7px}
+  .spec-item:hover{background:#fff}
+  .spec-item.sel{background:#fff;border-color:var(--burnt);box-shadow:var(--shadow)}
+  .spec-item .nm{font-family:"Montserrat";font-weight:700;font-size:14px}
+  .spec-item .fl{font-family:"JetBrains Mono";font-size:11px;color:var(--ink-2);margin-top:2px}
+  .spec-item .mini{display:flex;gap:3px;margin-top:8px}
+  .dot{width:100%;height:6px;border-radius:3px;background:var(--cream-2)}
+  .dot>i{display:block;height:100%;border-radius:3px;background:var(--burnt)}
+  /* main */
+  .main{padding:24px 28px;max-width:1100px}
+  .spec-head h2{font-size:26px;font-weight:800;margin:0 0 2px}
+  .spec-head .sub{font-family:"JetBrains Mono";font-size:12px;color:var(--ink-2)}
+  details{margin-top:12px;border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:var(--shadow);overflow:hidden}
+  summary{cursor:pointer;padding:11px 16px;font-family:"Montserrat";font-weight:700;font-size:13px;
+    list-style:none;display:flex;align-items:center;gap:8px;color:var(--ink)}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸";color:var(--burnt);font-size:11px}
+  details[open]>summary::before{content:"▾"}
+  details .body{padding:0 16px 16px}
+  pre{background:#2b2118;color:#f4e9da;border-radius:10px;padding:14px 16px;overflow:auto;
+    font-size:12.5px;line-height:1.5;margin:8px 0 0}
+  pre.spec{max-height:340px}pre.codeenv{max-height:460px}
+  .prompt-box{background:var(--cream-2);border:1px solid var(--line);border-radius:10px;
+    padding:12px 14px;white-space:pre-wrap;font-size:13.5px;margin-top:8px;max-height:300px;overflow:auto}
+  /* builders */
+  .builders{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin:18px 0 6px}
+  .bcard{background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:14px;
+    cursor:pointer;box-shadow:var(--shadow);transition:transform .12s,border-color .12s}
+  .bcard:hover{transform:translateY(-2px)}
+  .bcard.sel{border-color:var(--burnt);border-width:2px;padding:13px}
+  .bcard .bm{font-family:"JetBrains Mono";font-weight:600;font-size:14px;color:var(--burnt-2)}
+  .role{font-family:"Montserrat";font-weight:700;font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--ink-2);background:var(--cream-2);border-radius:5px;padding:2px 7px;display:inline-block;margin-top:4px}
+  .role.golden{color:#7a5a14;background:#f7ecca}
+  .bscore{display:flex;align-items:center;gap:10px;margin-top:11px}
+  .bscore .v{font-family:"Montserrat";font-weight:800;font-size:22px}
+  .track{flex:1;height:9px;background:var(--cream-2);border-radius:5px;overflow:hidden}
+  .track>i{display:block;height:100%;border-radius:5px;background:var(--burnt)}
+  .track>i.gold{background:linear-gradient(90deg,#E2B24E,#D9A441)}
+  .badge{font-family:"Montserrat";font-weight:700;font-size:10px;padding:2px 7px;border-radius:5px;margin-left:6px}
+  .ok{background:#e2efe4;color:#2f5c3e}.bad{background:#f6dfd2;color:#a4400f}
+  /* builder detail */
+  .detail{margin-top:18px;border-top:2px solid var(--line);padding-top:16px}
+  .detail h3{font-size:17px;margin:0 0 2px}
+  .detail .who{font-family:"JetBrains Mono";font-size:13px;color:var(--burnt-2)}
+  .section-lbl{font-family:"Montserrat";font-weight:700;font-size:11px;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--ink-2);margin:20px 0 4px}
+  /* rollouts */
+  .rollout{border:1px solid var(--line);border-radius:12px;background:var(--paper);margin-top:10px;overflow:hidden;box-shadow:var(--shadow)}
+  .rhead{display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer}
+  .rhead:hover{background:#fffaf2}
+  .rwd{font-family:"Montserrat";font-weight:800;font-size:16px;color:#fff;background:var(--burnt);border-radius:7px;padding:3px 11px}
+  .rwd.z{background:var(--red)}.rwd.full{background:var(--sage)}
+  .rmeta{font-size:12px;color:var(--ink-2);font-family:"JetBrains Mono"}
+  .rlink{margin-left:auto;font-size:12px;font-family:"Montserrat";font-weight:600;color:var(--burnt-2);text-decoration:none}
+  .rlink:hover{text-decoration:underline}
+  .trace{padding:6px 14px 14px;border-top:1px dashed var(--line);display:none}
+  .rollout.open .trace{display:block}
+  /* trace steps */
+  .step{display:grid;grid-template-columns:96px 1fr;gap:12px;padding:9px 0;border-bottom:1px solid #f0e6d6}
+  .step:last-child{border-bottom:none}
+  .src{font-family:"Montserrat";font-weight:700;font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+    padding:3px 0;color:#fff;border-radius:6px;text-align:center;height:fit-content}
+  .src.setup,.src.grade{background:var(--gold);color:#3a2c00}
+  .src.user{background:var(--teal)}.src.agent{background:var(--burnt)}.src.tool{background:var(--sage)}
+  .step .c{min-width:0}
+  .txt{white-space:pre-wrap;word-break:break-word;font-size:13.5px}
+  .toolcall{font-family:"JetBrains Mono";font-size:12px;background:#eef3ea;border:1px solid #d6e2cd;
+    border-radius:8px;padding:7px 10px;margin-top:6px}
+  .toolcall .fn{color:var(--sage);font-weight:600}
+  .toolres{font-family:"JetBrains Mono";font-size:12px;background:var(--cream-2);border:1px solid var(--line);
+    border-radius:8px;padding:7px 10px;margin-top:6px;white-space:pre-wrap;max-height:200px;overflow:auto}
+  .gradeline{font-family:"Montserrat";font-weight:700;font-size:13px}
+  .raw-t{font-size:11px;color:var(--ink-2);cursor:pointer;font-family:"Montserrat";font-weight:600;margin-top:6px;display:inline-block}
+  .raw-j{display:none;font-size:11px;margin-top:4px;max-height:240px}
+  .raw-j.show{display:block}
+  .submeta{font-size:11px;color:var(--ink-2);margin-top:5px;font-family:"Montserrat";font-weight:600}
+  .attempt{border:1px solid var(--line);border-radius:12px;background:var(--paper);margin-top:10px;overflow:hidden;box-shadow:var(--shadow)}
+  .ahead{display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer}
+  .ahead:hover{background:#fffaf2}
+  .amid{font-size:13px;color:var(--ink-2);font-family:"JetBrains Mono"}
+  .abad{color:var(--red);font-size:12px;font-family:"JetBrains Mono"}
+  .abody{display:none;padding:8px 14px 14px;border-top:1px dashed var(--line)}
+  .attempt.open .abody{display:block}
+  .empty{color:var(--ink-2);font-style:italic;padding:40px;text-align:center}
+  .final{background:#f3ede0;border-left:3px solid var(--burnt);border-radius:0 8px 8px 0;padding:10px 14px;margin-top:8px;white-space:pre-wrap;font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>bench&#8209;ception<span class="d">·</span> monitor</h1>
+  <div class="meta" id="meta"></div>
+</div>
+<div class="app">
+  <aside class="rail"><div class="lbl">Specs / prompts</div><div id="rail"></div></aside>
+  <main class="main" id="main"></main>
+</div>
+
+<script src="data.js"></script>
+<script>
+const D = window.BENCHCEPTION_DATA;
+let selSpec = 0, selBuilder = 0;
+
+const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const pj = o => esc(JSON.stringify(o, null, 2));
+function textOf(content){
+  if(content==null) return "";
+  if(typeof content==="string") return content;
+  if(Array.isArray(content)) return content.map(textOf).join("\n");
+  if(typeof content==="object"){
+    if(content.text!=null) return content.text;
+    if(content.content!=null) return textOf(content.content);
+    return JSON.stringify(content);
+  }
+  return String(content);
+}
+function avgScore(sp){
+  const v=sp.builders.map(b=>b.score_best).filter(x=>x!=null);
+  return v.length? v.reduce((a,b)=>a+b,0)/v.length : 0;
+}
+
+function renderMeta(){
+  const m=D.meta;
+  document.getElementById("meta").innerHTML =
+    `<span>run <b>${esc(m.generated_at||"—")}</b></span>`+
+    `<span>probe <b>${esc(m.probe)}</b></span>`+
+    `<span>group <b>${esc(m.group)}</b></span>`+
+    `<span>gateway <b>${esc((m.gateway||"").replace("https://",""))}</b></span>`;
+}
+function renderRail(){
+  document.getElementById("rail").innerHTML = D.specs.map((sp,i)=>{
+    const bars = sp.builders.map(b=>`<div class="dot"><i style="width:${Math.round((b.score_best||0)*100)}%"></i></div>`).join("");
+    return `<div class="spec-item ${i===selSpec?'sel':''}" data-spec="${i}">
+      <div class="nm">${esc(sp.name)}</div><div class="fl">${esc(sp.file)}</div>
+      <div class="mini">${bars}</div></div>`;
+  }).join("");
+}
+
+function renderMain(){
+  const sp = D.specs[selSpec];
+  if(!sp){document.getElementById("main").innerHTML='<div class="empty">No data.</div>';return;}
+  const b = sp.builders[selBuilder] || sp.builders[0];
+  const html = `
+    <div class="spec-head">
+      <h2>${esc(sp.name)}</h2>
+      <div class="sub">${esc(sp.file)} · the JSON prompt every builder receives</div>
+    </div>
+    <details><summary>Spec / prompt JSON</summary><div class="body"><pre class="spec">${esc(sp.spec_text)}</pre></div></details>
+
+    <div class="section-lbl">Builders · click to inspect</div>
+    <div class="builders">
+      ${sp.builders.map((bb,j)=>{
+        const best = bb.score_best||0, mean = bb.score_mean||0;
+        const gold = bb.role==="golden author";
+        const okv = bb.valid_count>0;
+        return `<div class="bcard ${j===selBuilder?'sel':''}" data-builder="${j}">
+          <div class="bm">${esc(bb.model)}</div>
+          <div><span class="role ${gold?'golden':''}">${esc(bb.role)}</span>
+            <span class="badge ${okv?'ok':'bad'}">${bb.valid_count}/${bb.n_attempts} valid</span></div>
+          <div class="bscore"><span class="v">${best.toFixed(2)}</span>
+            <span class="track"><i class="${gold?'gold':''}" style="width:${Math.round(best*100)}%"></i></span></div>
+          <div class="submeta">best · mean ${mean.toFixed(2)} over ${bb.n_attempts}</div>
+        </div>`;}).join("")}
+    </div>
+    ${renderBuilder(b)}
+  `;
+  document.getElementById("main").innerHTML = html;
+}
+
+function renderBuilder(b){
+  if(!b) return "";
+  const attempts = (b.attempts||[]).map(renderAttempt).join("") ||
+    '<div class="empty">No attempts.</div>';
+  return `<div class="detail">
+    <h3>${esc(b.model)}</h3>
+    <div class="who">${esc(b.role)} · best ${(b.score_best||0).toFixed(3)} · mean ${(b.score_mean||0).toFixed(3)} · ${b.valid_count}/${b.n_attempts} valid</div>
+    <div class="section-lbl">Build · system prompt</div>
+    <details><summary>System prompt (build instructions)</summary><div class="body"><div class="prompt-box">${esc(b.system_prompt)}</div></div></details>
+    <details><summary>User prompt (the spec handed to the builder)</summary><div class="body"><div class="prompt-box">${esc(b.user_prompt)}</div></div></details>
+    <div class="section-lbl">Build attempts · ${b.n_attempts} (click to expand)</div>
+    ${attempts}
+  </div>`;
+}
+
+function renderAttempt(a){
+  const sc = a.score==null?"—":a.score.toFixed(2);
+  const cls = a.valid ? (a.score>=0.999?"full":(a.score<=0.001?"z":"")) : "z";
+  const status = a.error ? `<span class="abad">${esc(a.error)}</span>`
+    : `${a.valid?'valid':'invalid'} · ${a.n_tasks} task(s) · ${(a.rollouts||[]).length} rollout(s)`;
+  const code = a.code ? `<details><summary>Generated environment</summary><div class="body"><pre class="codeenv">${esc(a.code)}</pre></div></details>` : '';
+  const rollouts = (a.rollouts||[]).map((r,k)=>renderRollout(r,k)).join("");
+  return `<div class="attempt">
+    <div class="ahead"><span class="rwd ${cls}">${sc}</span>
+      <span class="amid">attempt ${a.idx} · ${status}</span></div>
+    <div class="abody">${code}${rollouts}</div>
+  </div>`;
+}
+
+function renderRollout(r,k){
+  const rw = r.reward==null?"—":r.reward.toFixed(2);
+  const cls = r.reward==null?"":(r.reward>=0.999?"full":(r.reward<=0.001?"z":""));
+  const link = r.trace_url?`<a class="rlink" href="${esc(r.trace_url)}" target="_blank">hud.ai trace ↗</a>`:"";
+  const steps = (r.steps||[]).map(renderStep).join("");
+  const final = r.final_answer?`<div class="section-lbl">Final answer</div><div class="final">${esc(textOf(r.final_answer))}</div>`:"";
+  return `<div class="rollout" data-roll="${k}">
+    <div class="rhead"><span class="rwd ${cls}">${rw}</span>
+      <span class="rmeta">rollout ${k+1} · ${esc(r.status||'?')} · ${(r.steps||[]).length} steps</span>${link}</div>
+    <div class="trace">${steps}${final}</div>
+  </div>`;
+}
+
+function renderStep(st,i){
+  const src = st.source||"?";
+  const tc = st.task_call;
+  let label = src, c = "";
+  if(src==="task" && tc){
+    const phase = tc.phase||"";
+    if(phase==="setup"){ label="setup";
+      c=`<div class="txt">${esc(textOf((tc.result||{}).prompt))}</div>`;
+    } else if(phase==="evaluate"){ label="grade";
+      const score=(tc.result||{}).score;
+      c=`<div class="gradeline">score = ${score==null?'—':score}</div>`+
+        `<div class="txt" style="margin-top:6px;color:var(--ink-2)">graded answer:</div>`+
+        `<div class="txt">${esc(textOf((tc.arguments||{}).answer))}</div>`;
+    } else { c=`<div class="txt">${esc(phase)}</div>`; }
+  } else if(src==="user"){
+    const m=(st.messages||[])[0]||{};
+    c=`<div class="txt">${esc(textOf(m.content))}</div>`;
+  } else if(src==="agent"){
+    if(st.content) c+=`<div class="txt">${esc(textOf(st.content))}</div>`;
+    if(st.reasoning) c+=`<div class="txt" style="color:var(--ink-2)">${esc(textOf(st.reasoning))}</div>`;
+    (st.tool_calls||[]).forEach(t=>{
+      c+=`<div class="toolcall"><span class="fn">${esc(t.name)}</span>(${esc(JSON.stringify(t.arguments))})</div>`;
+    });
+    if(!c) c=`<div class="txt" style="color:var(--ink-2)">(no text — tool call turn)</div>`;
+  } else if(src==="tool"){
+    const call=st.call||{};
+    c=`<div class="toolcall"><span class="fn">${esc(call.name)}</span>(${esc(JSON.stringify(call.arguments))})</div>`+
+      `<div class="toolres">${esc(textOf((st.result||{}).content!=null?st.result.content:st.result))}</div>`;
+  } else {
+    c=`<div class="txt">${esc(JSON.stringify(st).slice(0,300))}</div>`;
+  }
+  const rid="raw"+Math.random().toString(36).slice(2,8);
+  return `<div class="step"><div class="src ${label}">${esc(label)}</div>
+    <div class="c">${c}
+      <span class="raw-t" data-raw="${rid}">raw json ▾</span>
+      <pre class="raw-j" id="${rid}">${pj(st)}</pre>
+    </div></div>`;
+}
+
+// events
+document.addEventListener("click", e=>{
+  const sp=e.target.closest("[data-spec]");
+  if(sp){ selSpec=+sp.dataset.spec; selBuilder=0; renderRail(); renderMain(); return; }
+  const bd=e.target.closest("[data-builder]");
+  if(bd){ selBuilder=+bd.dataset.builder; renderMain(); return; }
+  const ah=e.target.closest(".ahead");
+  if(ah){ ah.parentElement.classList.toggle("open"); return; }
+  const rh=e.target.closest(".rhead");
+  if(rh){ rh.parentElement.classList.toggle("open"); return; }
+  const rt=e.target.closest("[data-raw]");
+  if(rt){ document.getElementById(rt.dataset.raw).classList.toggle("show"); return; }
+});
+
+if(!D){ document.getElementById("main").innerHTML='<div class="empty">No data.js found — run <code>python -m environmentadi.capture</code> first.</div>'; }
+else { renderMeta(); renderRail(); renderMain(); }
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+[project]
+name = "environmentadi"
+version = "0.1.0"
+description = "Cross-play benchmark for model-built HUD environments"
+requires-python = ">=3.11"
+# The mock backend (default) is stdlib-only and needs none of these.
+# They are required only for the real `hud` backend.
+dependencies = []
+
+[project.optional-dependencies]
+hud = [
+    "hud-python>=0.6",
+    "openai>=1.40",
+]
+
+[project.scripts]
+environmentadi = "environmentadi.tournament:main"
+
+[tool.setuptools]
+packages = ["environmentadi", "environmentadi.backends"]

@@ -1,0 +1,18 @@
+{
+  "project": { "id": "letter-count", "name": "Letter Count", "version": 1 },
+  "environment": {
+    "objective": "Count how many times a given letter appears in a word.",
+    "inputs": "A word and a target letter.",
+    "outputs": "A single integer: the count."
+  },
+  "tools": [],
+  "tasks": [
+    {
+      "id": "count",
+      "name": "Count the letter",
+      "prompt": "How many 'r's are in 'strawberry'? Reply with just the number.",
+      "reward": { "mode": "guided", "spec": "answer == 3 -> 1.0 else 0.0" }
+    }
+  ],
+  "train": { "algorithm": "grpo", "base_model": "qwen3-8b", "episodes": 100, "eval_split": 0.2 }
+}

@@ -1,0 +1,20 @@
+{
+  "project": { "id": "sentiment", "name": "Sentiment Tag", "version": 1 },
+  "environment": {
+    "objective": "Classify a short product review as positive or negative.",
+    "inputs": "One line of review text.",
+    "outputs": "The word 'positive' or 'negative'."
+  },
+  "tools": [
+    { "id": "lexicon", "name": "lookup_word", "description": "Return the polarity (+1/-1/0) of a single word." }
+  ],
+  "tasks": [
+    {
+      "id": "classify",
+      "name": "Classify the review",
+      "prompt": "Review: 'This blender broke on day two.' Is the sentiment positive or negative?",
+      "reward": { "mode": "guided", "spec": "answer contains \"negative\" -> 1.0 else 0.0" }
+    }
+  ],
+  "train": { "algorithm": "grpo", "base_model": "qwen3-8b", "episodes": 200, "eval_split": 0.2 }
+}
