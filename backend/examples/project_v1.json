@@ -1,0 +1,9 @@
+[
+  { "type": "env", "name": "research_agent", "description": "An agent that can compute and look things up." },
+  { "type": "tool", "name": "calculator", "functionality": "Evaluate an arithmetic expression and return the result." },
+  { "type": "tool", "name": "run_python", "functionality": "Execute a Python script and return its stdout." },
+  { "type": "tool", "name": "web_search", "functionality": "Search the web and summarize what you find." },
+  { "type": "tool", "name": "fetch_url", "functionality": "Fetch the contents of a URL over HTTP." },
+  { "type": "task", "prompt": "What is 17 * 23?", "answerType": "exact", "answer": "391" },
+  { "type": "task", "prompt": "Find the population of France.", "answerType": "state", "answer": "States the approximate population of France (~68 million)." }
+]

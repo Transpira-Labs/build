@@ -15,6 +15,7 @@ import { useKidsMode } from "@/state/kidsMode";
 import { saveEnvironment, useEnvironment } from "@/lib/library";
 import { RightPanel } from "@/components/builder/RightPanel";
 import { CheckButton } from "@/components/builder/CheckButton";
+import { DeployButton } from "@/components/builder/DeployButton";
 import type { Block } from "@/lib/blocks/model";
 
 const Builder = dynamic(
@@ -117,14 +118,7 @@ function TopBar() {
           )}
         </button>
         <CheckButton />
-        {/* Wired up in a later build step (compile → deploy → train). */}
-        <button
-          disabled
-          className="cursor-not-allowed rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground opacity-50"
-          title="Coming next"
-        >
-          Compile
-        </button>
+        <DeployButton />
       </div>
     </header>
   );

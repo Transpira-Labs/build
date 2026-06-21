@@ -1,0 +1,142 @@
+"""
+Bridge for the web app: compile a v1 project JSON into a HUD env and (optionally)
+deploy it. Reads the v1 JSON from **stdin**, runs extract → build → (deploy), and
+prints exactly ONE JSON object to **stdout**.
+
+`hud deploy` build logs are streamed to **stderr** so stdout stays clean JSON the
+Next.js `/api/deploy` route can parse. Invoked locally (dev) via the backend venv:
+
+    echo '<v1-json>' | .venv/bin/python deploy_one.py            # compile + deploy
+    echo '<v1-json>' | .venv/bin/python deploy_one.py --dry-run  # compile, print cmd, don't deploy
+    echo '<v1-json>' | .venv/bin/python deploy_one.py --no-llm   # offline (no gateway calls)
+
+Needs HUD_API_KEY in the environment for a real deploy (the caller passes it through).
+"""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+def _tool_report(env_py: Path, tool_names: list[str]) -> list[dict]:
+    """Classify each tool in the generated env.py as implemented or a stub.
+
+    The synthesizer marks unimplemented tools with '(STUB — not yet implemented)'
+    in the docstring and a body that just echoes its input. We read this from the
+    *generated* code, so the report is exactly what gets deployed."""
+    docs: dict[str, str] = {}
+    try:
+        tree = ast.parse(env_py.read_text())
+        for n in ast.walk(tree):
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                docs[n.name] = ast.get_docstring(n) or ""
+    except Exception:  # noqa: BLE001 - best effort; absence means "unknown"
+        pass
+
+    report: list[dict] = []
+    for name in tool_names:
+        doc = docs.get(name, "")
+        is_stub = "stub" in doc.lower() and "not yet implemented" in doc.lower()
+        report.append({"name": name, "implemented": not is_stub})
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="deploy_one")
+    ap.add_argument("--no-llm", action="store_true", help="skip the LLM extractor/codegen (offline)")
+    ap.add_argument("--dry-run", action="store_true", help="compile + print the deploy command, don't run it")
+    args = ap.parse_args(argv)
+
+    try:
+        raw = json.loads(sys.stdin.read())
+    except json.JSONDecodeError as e:
+        print(json.dumps({"deployed": False, "message": f"invalid JSON on stdin: {e}"}))
+        return 1
+
+    from synth.compile.deploy import _hud_executable, build_deploy_command, has_api_key
+    from synth.compile.registry import build_from_project
+    from synth.tools.extract import extract_project
+
+    use_llm = not args.no_llm
+    spec = extract_project(raw, use_llm=use_llm)
+    cb = build_from_project(raw, spec, use_llm=use_llm)
+
+    out = Path(tempfile.mkdtemp(prefix="synth-"))
+    for rel, content in cb.files.items():
+        p = out / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content)
+
+    tools = _tool_report(out / "env.py", [t.name for t in spec.tools])
+    stubbed = [t["name"] for t in tools if not t["implemented"]]
+
+    result: dict = {
+        "env_name": cb.ir.env_name,
+        "version": cb.ir.version,
+        "compiled": bool(cb.ok),
+        "deployable": bool(cb.deployable),
+        "tools": tools,
+        "stubbed": stubbed,
+        "diagnostics": [
+            {"level": d.level, "code": d.code, "message": d.message} for d in cb.diagnostics
+        ],
+        "out_dir": str(out),
+        "deployed": False,
+        "message": "",
+    }
+
+    if not cb.deployable:
+        result["message"] = "not deployable — fix the errors above first"
+        print(json.dumps(result))
+        return 1
+
+    hud = _hud_executable()
+    if hud is None:
+        result["message"] = "the `hud` CLI is not installed (pip install hud-python)"
+        print(json.dumps(result))
+        return 1
+
+    cmd = build_deploy_command(out, hud=hud)
+    result["command"] = cmd
+
+    if args.dry_run:
+        result["message"] = "dry run — command not executed"
+        print(json.dumps(result))
+        return 0
+
+    if not has_api_key():
+        result["message"] = "no HUD_API_KEY in the environment"
+        print(json.dumps(result))
+        return 1
+
+    # Inherit nothing to stdout: build logs go to stderr so our JSON line is the
+    # only thing on stdout.
+    proc = subprocess.run(cmd, stdout=sys.stderr, stderr=sys.stderr)
+    if proc.returncode != 0:
+        result["deployed"] = False
+        result["message"] = f"`hud deploy` exited with code {proc.returncode}"
+        print(json.dumps(result))
+        return 1
+
+    result["deployed"] = True
+    result["message"] = "deployed"
+
+    # `hud deploy` registers the env image but NOT its taskset. Sync the baked-in
+    # Taskset so the run page's `Taskset.from_api(env_name)` can find it on HUD.
+    sync_cmd = [hud, "sync", "tasks", cb.ir.env_name, str(out / "env.py"), "--yes"]
+    sync_proc = subprocess.run(sync_cmd, stdout=sys.stderr, stderr=sys.stderr)
+    result["taskset_synced"] = sync_proc.returncode == 0
+    if sync_proc.returncode != 0:
+        result["message"] = "deployed, but taskset sync failed — the run page won't find tasks"
+    print(json.dumps(result))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

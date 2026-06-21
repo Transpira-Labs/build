@@ -64,6 +64,22 @@ export interface TrainSettings {
   improvement: string;
 }
 
+/** Result of the last "Build it" (compile + deploy to HUD). Persisted with the
+ *  project (light persistence) so the env name survives reloads and the run page
+ *  knows which deployed HUD env to query. */
+export interface DeployInfo {
+  /** The deployed HUD env name (authoritative — returned by the backend). */
+  envName: string;
+  /** The hud.ai environment page (parsed from the deploy log), if found. */
+  envUrl?: string;
+  /** Content-hash version the backend pinned. */
+  version?: string;
+  status: "deployed" | "failed";
+  /** ISO timestamp of the deploy attempt. */
+  deployedAt: string;
+  message?: string;
+}
+
 export interface Block {
   id: string;
   kind: BlockKind;
@@ -91,6 +107,8 @@ export interface ProjectDoc {
   /** UI-only: which main block each one is snapped beneath (childId -> parentId).
    *  Persisted so connected stacks survive reloads; ignored by the IR. */
   connections?: Record<string, string>;
+  /** Last successful compile+deploy to HUD; drives the run page. */
+  deploy?: DeployInfo;
 }
 
 // ---------------------------------------------------------------------------

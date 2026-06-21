@@ -161,6 +161,20 @@ export function Builder() {
     };
   }
 
+  // Click-to-create from the palette: drop the block near the centre of the
+  // current viewport (singletons are already disabled in the palette).
+  function placeMainAtCenter(kind: MainKind) {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const cx = rect ? (rect.width / 2 - view.x) / view.scale : 220;
+    const cy = rect ? (rect.height / 2 - view.y) / view.scale : 180;
+    dispatch({
+      type: "placeMain",
+      kind,
+      x: Math.max(0, cx - 170),
+      y: Math.max(0, cy - 140),
+    });
+  }
+
   function onDragStart(e: DragStartEvent) {
     const data = e.active.data.current;
     if (!data) return;
@@ -333,7 +347,7 @@ export function Builder() {
       }}
     >
       <div className="flex h-full min-h-0 flex-1">
-        <Palette />
+        <Palette onCreate={placeMainAtCenter} />
         <Canvas
           activeChildKind={activeChildKind}
           canvasRef={canvasRef}

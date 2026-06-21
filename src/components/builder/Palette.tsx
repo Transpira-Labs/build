@@ -17,7 +17,7 @@ import {
 import { useProject } from "@/state/project";
 import { MainPaletteItem, SubPaletteItem } from "./PaletteItem";
 
-export function Palette() {
+export function Palette({ onCreate }: { onCreate: (kind: MainKind) => void }) {
   const { doc } = useProject();
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
@@ -70,6 +70,7 @@ export function Palette() {
                 disabled={BLOCKS[kind].singleton && !!firstMain(doc, kind)}
                 expanded={false}
                 onToggle={() => {}}
+                onCreate={onCreate}
               />
             ))}
             {results.subs.map((s) => (
@@ -98,6 +99,7 @@ export function Palette() {
                     disabled={BLOCKS[kind].singleton && placed}
                     expanded={expanded}
                     onToggle={() => setOpen((o) => ({ ...o, [kind]: !o[kind] }))}
+                    onCreate={onCreate}
                   />
                   {expanded &&
                     descendants(kind).map((d) => (

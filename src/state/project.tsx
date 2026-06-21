@@ -26,6 +26,7 @@ import {
   removeFromForest,
   type Block,
   type BlockKind,
+  type DeployInfo,
   type MainKind,
   type ProjectDoc,
   type ReferenceValue,
@@ -54,6 +55,7 @@ type Action =
   | { type: "setNum"; id: string; num: number }
   | { type: "patchReference"; id: string; patch: Partial<ReferenceValue> }
   | { type: "setTrain"; patch: Partial<TrainSettings> }
+  | { type: "setDeploy"; deploy: DeployInfo }
   | { type: "reorder"; parentId: string; fromId: string; toId: string };
 
 function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
@@ -183,6 +185,9 @@ function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
 
     case "setTrain":
       return { ...doc, train: { ...doc.train, ...action.patch } };
+
+    case "setDeploy":
+      return { ...doc, deploy: action.deploy };
 
     case "reorder": {
       const parent = findBlock(doc.blocks, action.parentId);

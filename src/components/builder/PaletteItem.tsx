@@ -5,6 +5,7 @@
 // the canvas (and expands to reveal its detail blocks); a "sub" item drags into
 // a container, indented by how deep it nests.
 
+import { useEffect, useRef } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import { BLOCKS, type BlockKind, type MainKind } from "@/lib/blocks/model";
@@ -15,11 +16,14 @@ export function MainPaletteItem({
   disabled,
   expanded,
   onToggle,
+  onCreate,
 }: {
   kind: MainKind;
   disabled?: boolean;
   expanded: boolean;
   onToggle: () => void;
+  /** Click the chip to drop the block onto the canvas (in addition to dragging). */
+  onCreate: (kind: MainKind) => void;
 }) {
   const def = BLOCKS[kind];
   const Icon = BLOCK_ICONS[kind];
@@ -28,6 +32,12 @@ export function MainPaletteItem({
     data: { type: "palette-main", kind },
     disabled,
   });
+
+  // Distinguish a click (create) from the tail of a drag (already placed on drop).
+  const dragged = useRef(false);
+  useEffect(() => {
+    if (isDragging) dragged.current = true;
+  }, [isDragging]);
 
   return (
     <div
@@ -54,9 +64,19 @@ export function MainPaletteItem({
         {...(disabled ? {} : attributes)}
         {...(disabled ? {} : listeners)}
         disabled={disabled}
+        onPointerDownCapture={() => {
+          dragged.current = false;
+        }}
+        onClick={() => {
+          if (dragged.current) {
+            dragged.current = false;
+            return; // this was a drag, not a click — already handled on drop
+          }
+          if (!disabled) onCreate(kind);
+        }}
         style={{ cursor: disabled ? "not-allowed" : "grab" }}
         className="blk-header flex min-w-0 flex-1 touch-none items-center gap-2 py-2 pr-3 text-left text-white"
-        title={disabled ? "Already on the canvas" : `Drag “${def.label}” onto the canvas`}
+        title={disabled ? "Already on the canvas" : `Click or drag to add “${def.label}”`}
       >
         <Icon className="size-3.5 shrink-0 text-white/90" />
         <span className="min-w-0 truncate font-display text-sm font-bold">

@@ -1,0 +1,117 @@
+{
+  "project": {
+    "id": "bwL9-ZRtYA",
+    "name": "SupChain-Bench",
+    "version": 1
+  },
+  "environment": {
+    "description": "A supply-chain order-management environment.",
+    "setup": ""
+  },
+  "tools": [
+    {
+      "id": "fIP3ooRB",
+      "name": "query_buyer_and_related",
+      "description": "Find the related buyers from a trade order",
+      "inputs": "A trade order ID,",
+      "returns": "buyer_id plus a related_item list",
+      "backend": {
+        "type": "stub"
+      }
+    },
+    {
+      "id": "c3F2v1jQ",
+      "name": "get_fulfillment_status",
+      "description": "Get the aggregated business status of a fulfillment order",
+      "inputs": "A fulfillment order ID",
+      "returns": "status",
+      "backend": {
+        "type": "stub"
+      }
+    },
+    {
+      "id": "TZ_mt4_A",
+      "name": "get_cancel_scenes",
+      "description": "Who initiated the cancellation for an order",
+      "inputs": "A fulfillment order id.",
+      "returns": "BUYER or SELLER",
+      "backend": {
+        "type": "stub"
+      }
+    },
+    {
+      "id": "qpGKg66R",
+      "name": "get_cancel_error_code",
+      "description": "Get the cancellation reason code and message",
+      "inputs": "A fulfillment order id.",
+      "returns": "Error code and message",
+      "backend": {
+        "type": "stub"
+      }
+    },
+    {
+      "id": "ApfJ48Qu",
+      "name": "get_error_reason",
+      "description": "Get fulfillment-level error details",
+      "inputs": "A fulfillment order id.",
+      "returns": "code and text describing the error",
+      "backend": {
+        "type": "stub"
+      }
+    },
+    {
+      "id": "L4Oiutb2",
+      "name": "get_warehouse_status",
+      "description": "Get the status of a specific warehouse order.",
+      "inputs": "A fulfillment order id and a warehouse order id.",
+      "returns": "status",
+      "backend": {
+        "type": "stub"
+      }
+    },
+    {
+      "id": "Uh_Frmtk",
+      "name": "get_warehouse_error_details",
+      "description": "Get error details",
+      "inputs": "A fulfillment order id and a warehouse order id.",
+      "returns": "error description",
+      "backend": {
+        "type": "stub"
+      }
+    },
+    {
+      "id": "62nx-RIo",
+      "name": "check_fake_shipping",
+      "description": "Check for fake shipping",
+      "inputs": "A fulfillment order id.",
+      "returns": "True or False",
+      "backend": {
+        "type": "stub"
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "5-Gq5iMl",
+      "name": "Cancellation reason + warehouse status",
+      "prompt": "For trade order T1001, what was the stated reason for the cancellation of fulfillment order FO2001, and what is the current status of its associated warehouse order WO3001?",
+      "references": [],
+      "rubric": {
+        "good": [
+          "Provides the full reason for the cancellation"
+        ],
+        "bad": [
+          "States a cancellation reason without calling the cancellation tools.",
+          "Reports the wrong warehouse status/cancellation reason"
+        ]
+      },
+      "variants": []
+    }
+  ],
+  "train": {
+    "algorithm": "auto",
+    "base_model": "qwen3-8b",
+    "set_size": 500,
+    "improvement": ""
+  }
+}
