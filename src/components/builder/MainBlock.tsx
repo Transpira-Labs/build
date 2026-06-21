@@ -7,7 +7,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { BLOCKS, canAdd, type Block, type BlockKind } from "@/lib/blocks/model";
+import {
+  BLOCKS,
+  canAdd,
+  MAIN_WIDTH,
+  MAIN_WIDTH_MAX,
+  MAIN_WIDTH_MIN,
+  type Block,
+  type BlockKind,
+} from "@/lib/blocks/model";
 import { useProject } from "@/state/project";
 import { useKidsMode } from "@/state/kidsMode";
 import { BlockNode } from "./BlockNode";
@@ -75,6 +83,33 @@ export function MainBlock({
   const accepts = activeChildKind ? canAdd(block, activeChildKind) : false;
   const stop = (e: React.PointerEvent) => e.stopPropagation();
 
+  // Right-edge width handle: drag to set this block's width (persisted per block).
+  // Deltas are divided by the canvas zoom since the block lives in a scaled layer.
+  const widthDrag = useRef<{ startX: number; startW: number } | null>(null);
+  const onHandleDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    widthDrag.current = { startX: e.clientX, startW: block.width ?? MAIN_WIDTH };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onHandleMove = (e: React.PointerEvent) => {
+    const r = widthDrag.current;
+    if (!r) return;
+    const dx = (e.clientX - r.startX) / scale;
+    const w = Math.round(
+      Math.min(MAIN_WIDTH_MAX, Math.max(MAIN_WIDTH_MIN, r.startW + dx)),
+    );
+    dispatch({ type: "setWidth", id: block.id, width: w });
+  };
+  const onHandleUp = (e: React.PointerEvent) => {
+    widthDrag.current = null;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      /* pointer may already be released */
+    }
+  };
+
   // Head of a drag uses dnd-kit's transform; blocks snapped below it follow the
   // live delta so the connected stack moves as one.
   const t = following ?? transform;
@@ -85,7 +120,7 @@ export function MainBlock({
       ? `translate3d(${t.x / scale}px, ${t.y / scale}px, 0)`
       : undefined,
     zIndex: isDragging || following ? 50 : undefined,
-    width: 340,
+    width: block.width ?? MAIN_WIDTH,
     "--block-color": def.color,
   } as React.CSSProperties;
 
@@ -97,10 +132,22 @@ export function MainBlock({
       }}
       data-block-id={block.id}
       style={style}
-      className="blk absolute select-none pt-[10px]"
+      className="blk group absolute select-none pt-[10px]"
     >
       {/* Top socket — the peg of the block above drops into it. */}
       <div className="blk-socket" />
+
+      {/* Right-edge width handle (hover to reveal). */}
+      <div
+        onPointerDown={onHandleDown}
+        onPointerMove={onHandleMove}
+        onPointerUp={onHandleUp}
+        onPointerCancel={onHandleUp}
+        title="Drag to resize width"
+        className="absolute bottom-0 right-0 top-[10px] z-10 flex w-2.5 cursor-ew-resize items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+      >
+        <span className="h-10 w-1 rounded-full bg-black/25" />
+      </div>
 
       <div
         className={`blk-shadow overflow-hidden rounded-2xl border border-black/10 ${

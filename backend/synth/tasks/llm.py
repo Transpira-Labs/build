@@ -27,7 +27,7 @@ _PLAN_SCHEMA = {
     "properties": {
         "prompt": {
             "type": "string",
-            "description": "the task prompt to hand the agent; keep the user's intent, ground it in the tools",
+            "description": "the task prompt to hand the agent; keep the user's intent and, when the env has tools, name the exact tool(s) the agent should call",
         },
         "mode": {
             "enum": ["deterministic", "llm_judge"],
@@ -63,7 +63,11 @@ Rules:
   obvious short answer like a letter or true/false is embedded in it); if "exact", use deterministic.
 - Never write a grader that passes regardless of the work (no constant/echo/shape-only checks).
 - A correct result MUST score 1.0 and a wrong one 0.0; honor the user's authored answer.
-- Refine `prompt` so the agent knows what to do with the available tools; do not leak the answer.
+- Refine `prompt` so the agent knows what to do; do not leak the answer.
+- When the env lists tools, the refined `prompt` MUST name the specific tool(s) the agent
+  should call, by their exact names (e.g. "use `search_docs` to ..."), so the agent knows how
+  to act. Reference every tool that is relevant to the task. If the env lists no tools, do not
+  invent any — describe the task in plain terms.
 Call emit_plan exactly once."""
 
 

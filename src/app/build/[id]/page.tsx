@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, FlaskConical } from "lucide-react";
 import { useProject, ProjectProvider } from "@/state/project";
 import { useKidsMode } from "@/state/kidsMode";
 import { saveEnvironment, useEnvironment } from "@/lib/library";
@@ -118,6 +118,16 @@ function TopBar() {
           )}
         </button>
         <CheckButton />
+        {doc.deploy && (
+          <Link
+            href={`/build/${doc.id}/runs`}
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+            title="Open the test & training window for the last build"
+          >
+            <FlaskConical className="size-3.5" />
+            Test &amp; train
+          </Link>
+        )}
         <DeployButton />
       </div>
     </header>

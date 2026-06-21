@@ -47,6 +47,7 @@ type Action =
     }
   | { type: "moveMain"; id: string; x: number; y: number }
   | { type: "moveMany"; moves: { id: string; x: number; y: number }[] }
+  | { type: "setWidth"; id: string; width: number }
   | { type: "connect"; childId: string; parentId: string | null }
   | { type: "bringToFront"; id: string }
   | { type: "removeBlock"; id: string }
@@ -106,6 +107,12 @@ function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
           x: action.x,
           y: action.y,
         })),
+      };
+
+    case "setWidth":
+      return {
+        ...doc,
+        blocks: mapBlock(doc.blocks, action.id, (b) => ({ ...b, width: action.width })),
       };
 
     case "moveMany": {

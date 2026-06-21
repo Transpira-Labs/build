@@ -13,16 +13,19 @@ import {
   Brain,
   CircleCheck,
   ExternalLink,
+  Hammer,
   Loader2,
   Play,
   Rocket,
   Sparkles,
   TrendingUp,
+  TriangleAlert,
 } from "lucide-react";
 import { saveEnvironment, useEnvironment } from "@/lib/library";
 import { BLOCKS, type ProjectDoc, type DeployInfo } from "@/lib/blocks/model";
 import { toIR } from "@/lib/ir/schema";
 import { toV1Blocks } from "@/lib/ir/v1";
+import { buildSignature } from "@/lib/buildSig";
 import { runJob } from "@/lib/pollJob";
 
 // Mirrors the backend's DEFAULT_MODELS (a spanning weak→strong set).
@@ -74,6 +77,15 @@ type TrainResult = {
   fork?: string;
   error?: string;
   logTail?: string;
+};
+
+type DeployResp = {
+  env_name?: string;
+  version?: string;
+  deployed?: boolean;
+  message?: string;
+  logTail?: string;
+  error?: string;
 };
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -180,6 +192,8 @@ export default function RunsPage() {
           </div>
         ) : (
           <>
+            {doc && <StalenessBanner doc={doc} deploy={deploy} id={id} />}
+
             {/* Run controls */}
             <div className="rounded-xl border border-border bg-card p-4">
               <p className="text-sm font-semibold">Run examples</p>
@@ -417,6 +431,110 @@ function Badge({ ok, label }: { ok: boolean; label: string }) {
     >
       {label}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Staleness — the runs below test whatever was last deployed. If the project
+// has changed since that build (signature mismatch), warn and offer to rebuild
+// in place so the user doesn't run/train against a stale environment.
+// ---------------------------------------------------------------------------
+
+function StalenessBanner({
+  doc,
+  deploy,
+  id,
+}: {
+  doc: ProjectDoc;
+  deploy: DeployInfo;
+  id: string;
+}) {
+  const [rebuilding, setRebuilding] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // No captured hash → an older build from before staleness tracking; can't tell.
+  const stale = !!deploy.builtHash && buildSignature(doc) !== deploy.builtHash;
+  if (!stale) return null;
+
+  async function rebuild() {
+    setRebuilding(true);
+    setErr(null);
+    try {
+      const data = await runJob<DeployResp>("/api/deploy", {
+        blocks: toV1Blocks(toIR(doc)),
+      });
+      if (data.deployed) {
+        const envUrl = (data.logTail || "").match(
+          /https:\/\/hud\.ai\/environments\/[0-9a-f-]+/i,
+        )?.[0];
+        saveEnvironment({
+          ...doc,
+          deploy: {
+            envName: data.env_name || deploy.envName,
+            envUrl: envUrl ?? deploy.envUrl,
+            version: data.version,
+            status: "deployed",
+            deployedAt: new Date().toISOString(),
+            message: data.message,
+            builtHash: buildSignature(doc),
+          },
+        });
+        // saveEnvironment is reactive — the banner unmounts once doc matches.
+      } else {
+        setErr(data.message || data.error || "Rebuild failed — open the editor and try Build it.");
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Network error.");
+    } finally {
+      setRebuilding(false);
+    }
+  }
+
+  return (
+    <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+      <div className="flex gap-2.5">
+        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-500" />
+        <div className="text-sm">
+          <p className="font-semibold text-amber-900">
+            This environment has changed since the last build
+          </p>
+          <p className="mt-0.5 text-amber-800">
+            The runs below still use the build from{" "}
+            {new Date(deploy.deployedAt).toLocaleString()}. Rebuild to test and train on your
+            latest edits.
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          onClick={rebuild}
+          disabled={rebuilding}
+          className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+        >
+          {rebuilding ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" /> Rebuilding…
+            </>
+          ) : (
+            <>
+              <Hammer className="size-3.5" /> Rebuild now
+            </>
+          )}
+        </button>
+        <Link
+          href={`/build/${id}`}
+          className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
+        >
+          Open editor
+        </Link>
+        {rebuilding && (
+          <span className="text-xs text-amber-700">
+            Compiling &amp; deploying on HUD — keep this tab open.
+          </span>
+        )}
+      </div>
+      {err && <p className="mt-2 text-xs font-medium text-red-600">{err}</p>}
+    </div>
   );
 }
 

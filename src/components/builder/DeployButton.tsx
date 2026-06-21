@@ -20,7 +20,26 @@ import { useProject } from "@/state/project";
 import { toIR } from "@/lib/ir/schema";
 import { toV1Blocks } from "@/lib/ir/v1";
 import { checkEnvironment } from "@/lib/check";
+import { buildSignature } from "@/lib/buildSig";
 import { runJob } from "@/lib/pollJob";
+
+// Diagnostics that mean the build broke during *our* code-generation step (the
+// agent's fault), not because of the user's inputs. We auto-retry these once,
+// and frame them as a generation hiccup rather than a setup error.
+const AGENT_FAULT_CODES = new Set([
+  "tool.smoke_failed",
+  "env.syntax_error",
+  "contributor.failed",
+  "deploy.undeclared_dependency",
+  "build.file_conflict",
+  "judge.same_as_agent",
+  "adapt.unreadable",
+]);
+
+function isAgentFault(data: DeployResponse): boolean {
+  if (data.stubbed && data.stubbed.length > 0) return true;
+  return (data.diagnostics ?? []).some((d) => AGENT_FAULT_CODES.has(d.code));
+}
 
 type Diag = { level: string; code: string; message: string };
 type ToolStatus = { name: string; implemented: boolean };
@@ -46,15 +65,19 @@ export function DeployButton() {
   const [result, setResult] = useState<DeployResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function build() {
+  async function build(attempt = 0) {
     const ir = toIR(doc);
-    const check = checkEnvironment(ir);
-    if (!check.ready) {
-      setError(
-        `${check.errors} thing${check.errors === 1 ? "" : "s"} to fix first — open “Check it” to see them.`,
-      );
-      setPhase("blocked");
-      return;
+    // The completeness gate is about the user's inputs, so only run it on the
+    // first attempt — a code-generation retry uses the same (valid) inputs.
+    if (attempt === 0) {
+      const check = checkEnvironment(ir);
+      if (!check.ready) {
+        setError(
+          `${check.errors} thing${check.errors === 1 ? "" : "s"} to fix first — open “Check it” to see them.`,
+        );
+        setPhase("blocked");
+        return;
+      }
     }
 
     setPhase("deploying");
@@ -62,8 +85,8 @@ export function DeployButton() {
     setResult(null);
     try {
       const data = await runJob<DeployResponse>("/api/deploy", { blocks: toV1Blocks(ir) });
-      setResult(data);
       if (data.deployed) {
+        setResult(data);
         const envUrl = (data.logTail || "").match(
           /https:\/\/hud\.ai\/environments\/[0-9a-f-]+/i,
         )?.[0];
@@ -76,13 +99,26 @@ export function DeployButton() {
             status: "deployed",
             deployedAt: new Date().toISOString(),
             message: data.message,
+            builtHash: buildSignature(doc),
           },
         });
         setPhase("done");
-      } else {
-        setError(data.message || "Compiled, but not deployed.");
-        setPhase("error");
+        return;
       }
+
+      // Not deployed. If it broke in our generation step, retry once silently —
+      // generation is non-deterministic and usually succeeds on a second pass.
+      if (attempt === 0 && isAgentFault(data)) {
+        await build(1);
+        return;
+      }
+      setResult(data);
+      setError(
+        isAgentFault(data)
+          ? "The build hit a code-generation hiccup on our end (not your setup). We retried once — give it another go."
+          : data.message || "Compiled, but not deployed.",
+      );
+      setPhase("error");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Network error.");
       setPhase("error");
@@ -96,7 +132,7 @@ export function DeployButton() {
   return (
     <>
       <button
-        onClick={build}
+        onClick={() => build()}
         disabled={phase === "deploying"}
         className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
       >
@@ -232,7 +268,7 @@ export function DeployButton() {
                     </details>
                   )}
                   <button
-                    onClick={build}
+                    onClick={() => build()}
                     className="w-full rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-muted"
                   >
                     Try again

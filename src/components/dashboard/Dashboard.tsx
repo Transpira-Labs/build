@@ -4,6 +4,7 @@
 // they open an existing one, spin up a new one, or — if they're new — follow
 // the welcome card into a guide. The builder itself lives at /build/[id].
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -14,6 +15,7 @@ import {
   type StoredEnv,
 } from "@/lib/library";
 import { TEMPLATES, type Template } from "@/lib/templates";
+import { generateEnvironment } from "@/lib/generate";
 import { firstMain, type ProjectDoc } from "@/lib/blocks/model";
 
 export function Dashboard() {
@@ -21,11 +23,22 @@ export function Dashboard() {
   // `ready` is false until the shelf has been read on the client, so we hold
   // off on the empty state instead of flashing it during the first paint.
   const { envs, ready } = useEnvironments();
+  // "New environment" opens a chooser: start blank, or describe it in words and
+  // let the model draft it (see NewEnvModal).
+  const [newOpen, setNewOpen] = useState(false);
 
-  function handleCreate() {
+  function handleScratch() {
     const doc = createEnvironment();
     router.push(`/build/${doc.id}`);
   }
+
+  // Persist a model-drafted environment to the shelf, then open it to refine.
+  function handleGenerated(doc: ProjectDoc) {
+    saveEnvironment(doc);
+    router.push(`/build/${doc.id}`);
+  }
+
+  const openNew = () => setNewOpen(true);
 
   function handleDelete(id: string, name: string) {
     if (!window.confirm(`Delete "${name}"? This can't be undone.`)) return;
@@ -50,7 +63,7 @@ export function Dashboard() {
           Environments
         </span>
         <button
-          onClick={handleCreate}
+          onClick={openNew}
           className="ml-auto rounded-md bg-accent px-3.5 py-1.5 text-sm font-semibold text-accent-foreground shadow-sm transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-ring"
         >
           New environment
@@ -73,10 +86,10 @@ export function Dashboard() {
           </div>
 
           {!ready ? null : envs.length === 0 ? (
-            <EmptyState onCreate={handleCreate} />
+            <EmptyState onCreate={openNew} />
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <NewCard onCreate={handleCreate} />
+              <NewCard onCreate={openNew} />
               {envs.map((e) => (
                 <EnvCard
                   key={e.doc.id}
@@ -111,6 +124,159 @@ export function Dashboard() {
           </section>
         </div>
       </main>
+
+      {newOpen && (
+        <NewEnvModal
+          onClose={() => setNewOpen(false)}
+          onScratch={handleScratch}
+          onGenerated={handleGenerated}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// New-environment chooser. Two ways in: a blank canvas, or describe the
+// environment in plain language and let Opus 4.8 (via the HUD gateway) draft a
+// simple, runnable version you then refine in the builder.
+// ---------------------------------------------------------------------------
+
+function NewEnvModal({
+  onClose,
+  onScratch,
+  onGenerated,
+}: {
+  onClose: () => void;
+  onScratch: () => void;
+  onGenerated: (doc: ProjectDoc) => void;
+}) {
+  const [mode, setMode] = useState<"choose" | "prompt">("choose");
+  const [prompt, setPrompt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleGenerate() {
+    const text = prompt.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const doc = await generateEnvironment(text);
+      onGenerated(doc);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't generate. Try again.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={busy ? undefined : onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="New environment"
+        className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <h2 className="font-display text-xl font-semibold">New environment</h2>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            aria-label="Close"
+            className="-mr-1 rounded-md px-2 py-1 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            ✕
+          </button>
+        </div>
+
+        {mode === "choose" ? (
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <button
+              onClick={onScratch}
+              className="group flex flex-col rounded-xl border border-border bg-card/60 p-5 text-left transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-current text-xl leading-none text-muted-foreground group-hover:text-accent">
+                +
+              </span>
+              <span className="mt-3 font-display text-base font-semibold">
+                Start from scratch
+              </span>
+              <span className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                Open a blank canvas and snap blocks together yourself.
+              </span>
+            </button>
+
+            <button
+              onClick={() => setMode("prompt")}
+              className="group flex flex-col rounded-xl border border-border bg-card/60 p-5 text-left transition hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-current text-lg leading-none text-muted-foreground group-hover:text-accent">
+                ✦
+              </span>
+              <span className="mt-3 font-display text-base font-semibold">
+                Describe it
+              </span>
+              <span className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                Say what your agent should do and we&apos;ll draft a simple
+                environment to refine.
+              </span>
+            </button>
+          </div>
+        ) : (
+          <div className="mt-5">
+            <label
+              htmlFor="env-prompt"
+              className="text-sm font-medium text-foreground"
+            >
+              What should this environment train an agent to do?
+            </label>
+            <textarea
+              id="env-prompt"
+              autoFocus
+              rows={5}
+              value={prompt}
+              disabled={busy}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleGenerate();
+              }}
+              placeholder="e.g. Answer customer questions about our refund policy using a help-doc search tool, and grade whether the answer is correct and cites the policy."
+              className="mt-2 w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm leading-relaxed shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-ring disabled:opacity-60"
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              We keep it simple — a short description, a few tasks, and at most a
+              tool or two. You can add more in the builder.
+            </p>
+            {error && (
+              <p className="mt-2 text-sm text-[var(--bad,#B0503E)]">{error}</p>
+            )}
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <button
+                onClick={() => {
+                  setMode("choose");
+                  setError(null);
+                }}
+                disabled={busy}
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:text-foreground disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleGenerate}
+                disabled={busy || !prompt.trim()}
+                className="rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-accent-foreground shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {busy ? "Generating…" : "Generate"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

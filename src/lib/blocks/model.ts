@@ -78,6 +78,9 @@ export interface DeployInfo {
   /** ISO timestamp of the deploy attempt. */
   deployedAt: string;
   message?: string;
+  /** Signature of the project (v1 blocks) at build time — lets the run page warn
+   *  when the environment has changed since this build. See buildSignature(). */
+  builtHash?: string;
 }
 
 /** Result of the last managed-RL run launched from the run page. Persisted with
@@ -115,6 +118,8 @@ export interface Block {
   /** Canvas position (top-level main blocks only). */
   x?: number;
   y?: number;
+  /** User-set width in px (top-level main blocks only). Defaults to MAIN_WIDTH. */
+  width?: number;
   /** Leaf values. */
   text?: string;
   num?: number;
@@ -169,6 +174,11 @@ export interface BlockDef {
   options?: { value: string; label: string }[];
   number?: { min: number; max: number; step: number; unit: string; default: number };
 }
+
+/** Default / min / max width (px) for a top-level main block on the canvas. */
+export const MAIN_WIDTH = 340;
+export const MAIN_WIDTH_MIN = 260;
+export const MAIN_WIDTH_MAX = 720;
 
 // Function-based accent colours.
 const IO = "#5A7691";

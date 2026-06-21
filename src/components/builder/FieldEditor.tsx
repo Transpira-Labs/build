@@ -14,13 +14,17 @@ export function FieldEditor({ block }: { block: Block }) {
 
   if (def.valueType === "text") {
     return (
+      // resize-y gives the bottom-right grip to expand; overflow-auto lets long
+      // text scroll inside the box. onPointerDown stops the drag/pan handlers on
+      // the parent block from hijacking a resize/scroll gesture.
       <textarea
         value={block.text ?? ""}
         onChange={(e) =>
           dispatch({ type: "setText", id: block.id, text: e.target.value })
         }
+        onPointerDown={(e) => e.stopPropagation()}
         rows={2}
-        className={`resize-none ${field}`}
+        className={`min-h-[2.75rem] max-h-80 resize-y overflow-auto ${field}`}
       />
     );
   }

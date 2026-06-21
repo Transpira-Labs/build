@@ -112,6 +112,21 @@ export function Canvas({
     setView(() => ({ x, y, scale }));
   }, [canvasRef, doc.blocks, setView]);
 
+  // Set an absolute zoom (from the slider), keeping the viewport centre fixed.
+  const setZoom = useCallback(
+    (pct: number) => {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      const cx = rect ? rect.width / 2 : 0;
+      const cy = rect ? rect.height / 2 : 0;
+      setView((v) => {
+        const scale = Math.min(2.5, Math.max(0.3, pct / 100));
+        const k = scale / v.scale;
+        return { scale, x: cx - k * (cx - v.x), y: cy - k * (cy - v.y) };
+      });
+    },
+    [canvasRef, setView],
+  );
+
   const s = view.scale;
   const grid: React.CSSProperties = {
     backgroundColor: "oklch(0.94 0.016 82)",
@@ -172,8 +187,8 @@ export function Canvas({
         ))}
       </div>
 
-      {/* Zoom indicator + fit-to-blocks control */}
-      <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
+      {/* Zoom control (slider revealed on hover) + fit-to-blocks */}
+      <div className="group absolute bottom-3 right-3 flex items-center gap-1.5">
         <button
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
@@ -185,8 +200,28 @@ export function Canvas({
           <Maximize2 className="size-3" />
           Fit
         </button>
-        <div className="pointer-events-none rounded-md border border-border bg-card/80 px-2 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur-sm">
-          {Math.round(s * 100)}%
+        <div className="flex items-center gap-1.5 rounded-md border border-border bg-card/80 px-2 py-1 backdrop-blur-sm">
+          <input
+            type="range"
+            min={30}
+            max={250}
+            step={5}
+            value={Math.round(s * 100)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            aria-label="Zoom level"
+            title="Zoom"
+            className="h-1 w-0 cursor-pointer opacity-0 accent-accent transition-all duration-150 group-hover:w-28 group-hover:opacity-100"
+          />
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setZoom(100)}
+            title="Reset to 100%"
+            className="font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {Math.round(s * 100)}%
+          </button>
         </div>
       </div>
     </div>
