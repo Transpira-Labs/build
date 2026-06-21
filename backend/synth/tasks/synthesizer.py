@@ -159,6 +159,17 @@ def synthesize_scenario(
     if not plan.prompt.strip():
         plan.prompt = nt.prompt
 
+    # The user's authored grading intent wins: never downgrade an open-ended ("state")
+    # task to a deterministic string-match. The planner over-eagerly picks deterministic
+    # when an obvious literal (a choice letter, true/false) is embedded in a prose rubric,
+    # which both mis-grades correct work and saturates the task on the literal. Keep the
+    # planner's refined prompt, but force judge against the authored rubric.
+    if nt.answer_type != "exact" and plan.mode == "deterministic":
+        plan = ScenarioPlan(
+            prompt=plan.prompt, mode="llm_judge",
+            criteria=plan.criteria or ([nt.answer] if nt.answer.strip() else []),
+        )
+
     scn = _render(plan, nt, fn_name, task_id, judge_model, origin)
     _smoke(scn, nt)
 
