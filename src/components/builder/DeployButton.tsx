@@ -20,6 +20,7 @@ import { useProject } from "@/state/project";
 import { toIR } from "@/lib/ir/schema";
 import { toV1Blocks } from "@/lib/ir/v1";
 import { checkEnvironment } from "@/lib/check";
+import { runJob } from "@/lib/pollJob";
 
 type Diag = { level: string; code: string; message: string };
 type ToolStatus = { name: string; implemented: boolean };
@@ -60,18 +61,7 @@ export function DeployButton() {
     setError(null);
     setResult(null);
     try {
-      const res = await fetch("/api/deploy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blocks: toV1Blocks(ir) }),
-      });
-      const data: DeployResponse = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Deploy failed.");
-        setResult(data);
-        setPhase("error");
-        return;
-      }
+      const data = await runJob<DeployResponse>("/api/deploy", { blocks: toV1Blocks(ir) });
       setResult(data);
       if (data.deployed) {
         const envUrl = (data.logTail || "").match(

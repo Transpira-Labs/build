@@ -8,6 +8,9 @@ dependencies = [
     "fastmcp>=2.0",
     "hud-python>=0.6",
     "openai>=1.40",
+    # HTTP service (server.py) so the web app can trigger deploys/evals remotely.
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
 ]
 
 [project.scripts]

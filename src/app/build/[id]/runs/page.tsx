@@ -12,6 +12,7 @@ import { ArrowLeft, ExternalLink, Loader2, Play, Rocket } from "lucide-react";
 import { useEnvironment } from "@/lib/library";
 import { toIR } from "@/lib/ir/schema";
 import { toV1Blocks } from "@/lib/ir/v1";
+import { runJob } from "@/lib/pollJob";
 
 // Mirrors the backend's DEFAULT_MODELS (a spanning weak→strong set).
 const MODELS = [
@@ -72,13 +73,12 @@ export default function RunsPage() {
     setError(null);
     setResult(null);
     try {
-      const res = await fetch("/api/eval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blocks: toV1Blocks(toIR(doc)), models, group }),
+      const data = await runJob<Leaderboard>("/api/eval", {
+        blocks: toV1Blocks(toIR(doc)),
+        models,
+        group,
       });
-      const data: Leaderboard = await res.json();
-      if (!res.ok || !data.ok) {
+      if (!data.ok) {
         setError(data.error || "Eval failed.");
         setResult(data);
       } else {
