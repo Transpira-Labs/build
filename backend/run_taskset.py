@@ -75,6 +75,7 @@ async def _run(
     from hud import Job, Taskset
     from hud.agents import create_agent
     from hud.cli.utils.source import normalize_environment_name
+    from hud.eval import HostedRuntime
 
     # The taskset is registered under HUD's slugified env name (dashes); normalize
     # so a stale underscore name from an older deploy still resolves.
@@ -91,14 +92,19 @@ async def _run(
         }
 
     taskset_id = getattr(taskset, "id", None)
-    agent = create_agent(model)
+    # model_client=None defers the gateway client so the agent's identity can be
+    # serialized for HOSTED execution: the whole rollout (agent + env + the LLM
+    # judge grader) runs on the platform, which holds the gateway key — running
+    # it with a leased env (HUDRuntime) instead fails grading with
+    # "HUD_API_KEY is required for HUD gateway clients" (the leased env has no key).
+    agent = create_agent(model, model_client=None, max_steps=50)
     session = await Job.start(model, group=group, taskset_id=taskset_id)
 
     # Hand the HUD job id to the web app immediately, before the slow rollouts,
     # so it can poll live trace status while this runs.
     print(f"@@HUDJOB {session.id}", file=out, flush=True)
 
-    await taskset.run(agent, group=group, job=session)
+    await taskset.run(agent, group=group, job=session, runtime=HostedRuntime())
 
     per_task: dict[str, float] = {}
     for slug, runs in session.results.items():
