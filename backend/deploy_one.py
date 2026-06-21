@@ -132,8 +132,10 @@ def main(argv: list[str] | None = None) -> int:
     # so a failure is LOUD: this step used to fail silently (a too-old `hud` that can't import
     # the env.py, a missing env registry, or 0 tasks collected) leaving "taskset not found"
     # with no error anywhere. Surface the real reason in `taskset_error`.
-    sync_cmd = [hud, "sync", "tasks", cb.ir.env_name, str(out / "env.py"), "--yes"]
-    sync_proc = subprocess.run(sync_cmd, capture_output=True, text=True)
+    # `--yes` is deprecated; `hud sync tasks` no longer prompts. Run it non-interactively
+    # (DEVNULL stdin) so a stray confirmation can never block the deploy.
+    sync_cmd = [hud, "sync", "tasks", cb.ir.env_name, str(out / "env.py")]
+    sync_proc = subprocess.run(sync_cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     sync_out = (sync_proc.stdout or "") + (sync_proc.stderr or "")
     sys.stderr.write(sync_out)  # keep the full sync log on stderr (Railway logs / logTail)
     result["taskset"] = cb.ir.env_name
