@@ -8,6 +8,7 @@ changes. Per the current scope this step compile-checks only (no boot, no eval).
 
 from synth.compile.assemble_env import CompiledEnv, assemble_env, build_env_codebase, compile_env
 from synth.compile.contributors import task_contributions, tool_contributions
+from synth.compile.deploy import DeployResult, build_deploy_command, deploy_codebase
 from synth.compile.ir import (
     BuildIR,
     Codebase,
@@ -52,4 +53,7 @@ __all__ = [
     "register",
     "registered",
     "unregister",
+    "DeployResult",
+    "build_deploy_command",
+    "deploy_codebase",
 ]

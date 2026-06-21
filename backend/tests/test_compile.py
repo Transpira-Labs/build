@@ -251,3 +251,29 @@ def test_no_capability_is_warned():
     cb = build_codebase(task_contributions(taskset), env_name="qa")
     assert any(d.code == "deploy.no_capability" for d in cb.diagnostics)
     assert cb.deployable  # a warning, not a blocker
+
+
+# ── step 5: deploy wiring (command construction + preflight; no real deploy) ──
+def test_build_deploy_command():
+    from synth.compile import build_deploy_command
+    cmd = build_deploy_command("out", hud="hud", env=["K=V"], no_cache=True, verbose=True)
+    assert cmd == ["hud", "deploy", "out", "--env", "K=V", "--no-cache", "--verbose"]
+
+
+def test_deploy_dry_run_on_compiled_codebase(tmp_path):
+    from synth.compile import build_codebase, deploy_codebase
+    spec = _spec()
+    cb = build_codebase(tool_contributions(synthesize_toolset(spec, use_llm=False)), env_name="research_agent")
+    for name, content in cb.files.items():
+        (tmp_path / name).write_text(content)
+
+    res = deploy_codebase(tmp_path, env_name="research_agent", dry_run=True)
+    assert res.ok and res.returncode is None  # not executed
+    assert res.command[1] == "deploy" and str(tmp_path) in res.command
+
+
+def test_deploy_preflight_requires_dockerfile(tmp_path):
+    from synth.compile import deploy_codebase
+    (tmp_path / "env.py").write_text("env = None\n")  # env.py but no Dockerfile.hud
+    res = deploy_codebase(tmp_path, dry_run=True)
+    assert not res.ok and "Dockerfile.hud" in res.message

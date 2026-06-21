@@ -26,6 +26,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("-o", "--out", default="out", help="output directory (default: out/)")
     ap.add_argument("--no-llm", action="store_true", help="skip LLM extraction/codegen/planning (offline)")
     ap.add_argument("--version", default=None, help="override the pinned env version (default: content hash)")
+    ap.add_argument("--deploy", action="store_true", help="after compiling, deploy to HUD (`hud deploy`)")
+    ap.add_argument("--deploy-dry-run", action="store_true",
+                    help="print the `hud deploy` command without running it")
     args = ap.parse_args(argv)
 
     use_llm = not args.no_llm
@@ -45,7 +48,27 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[compile] compiled {'✓' if cb.ok else '✗'}  deployable {'✓' if cb.deployable else '✗'}")
     for d in cb.diagnostics:
         print(f"  [{d.level}] {d.code}: {d.message}")
+
+    if args.deploy or args.deploy_dry_run:
+        return _deploy(out, cb, dry_run=args.deploy_dry_run)
     return 0 if cb.deployable else 1
+
+
+def _deploy(out, cb, *, dry_run: bool) -> int:
+    from synth.compile.deploy import deploy_codebase, has_api_key
+
+    if not cb.deployable:
+        print("[deploy] refusing — codebase is not deployable; fix the errors above first.")
+        return 1
+    if not dry_run and not has_api_key():
+        print("[deploy] no HUD_API_KEY found — run `hud set HUD_API_KEY=...` (or pass --deploy-dry-run).")
+        return 1
+
+    result = deploy_codebase(out, env_name=cb.ir.env_name, dry_run=dry_run)
+    if result.command:
+        print("[deploy] $ " + " ".join(result.command))
+    print(f"[deploy] {result.message}")
+    return 0 if result.ok else 1
 
 
 if __name__ == "__main__":
