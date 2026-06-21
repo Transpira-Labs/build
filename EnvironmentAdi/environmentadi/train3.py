@@ -65,7 +65,9 @@ async def _validate(slug: str, group: int) -> dict:
     from hud.eval import HostedRuntime, Taskset
 
     ts = Taskset.from_api(GOLDEN_TASKSET)
-    job = await ts.run(_byname_agent(slug), runtime=HostedRuntime(run_timeout=1800), group=group)
+    # Cap concurrent hosted launches so we don't swamp the network (DNS failures).
+    job = await ts.run(_byname_agent(slug), runtime=HostedRuntime(run_timeout=1800),
+                       group=group, max_concurrent=8)
     jid = getattr(job, "id", None)
     return {"reward": getattr(job, "reward", None),
             "job_url": (f"https://hud.ai/jobs/{jid}") if jid else None}
