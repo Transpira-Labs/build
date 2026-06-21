@@ -4,7 +4,7 @@
 // content layer where the main blocks live at absolute positions.
 
 import { useDroppable } from "@dnd-kit/core";
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useRef, useState, type RefObject } from "react";
 import { LayoutGrid, Maximize2 } from "lucide-react";
 import type { BlockKind } from "@/lib/blocks/model";
 import { useProject } from "@/state/project";
@@ -34,25 +34,8 @@ export function Canvas({
   const pan = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
   const [grabbing, setGrabbing] = useState(false);
 
-  // Wheel zoom toward the cursor (native, non-passive so we can preventDefault).
-  useEffect(() => {
-    const el = canvasRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const rect = el.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      setView((v) => {
-        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-        const scale = Math.min(2.5, Math.max(0.3, v.scale * factor));
-        const k = scale / v.scale;
-        return { scale, x: mx - k * (mx - v.x), y: my - k * (my - v.y) };
-      });
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [canvasRef, setView]);
+  // Zoom is adjusted only via the bottom-right slider (see setZoom) — scroll/
+  // pinch on the canvas does not zoom, so it can't be triggered accidentally.
 
   // Drag the empty background to pan.
   const onPointerDown = (e: React.PointerEvent) => {
@@ -160,7 +143,7 @@ export function Canvas({
             Drag blocks onto the canvas
           </p>
           <p className="text-xs text-muted-foreground/60">
-            Scroll to zoom · drag the background to pan
+            Drag the background to pan · use the zoom slider, bottom-right
           </p>
         </div>
       )}
