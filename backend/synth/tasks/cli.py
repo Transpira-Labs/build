@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 
 from synth.tools.extract import extract_project
+from synth.tools.gateway import preflight_llm
 from synth.tasks.synthesizer import synthesize_taskset
 
 _ICON = {"passed": "✓", "compiled": "≈", "failed": "✗", "skipped": "·"}
@@ -36,10 +37,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--judge-model", default=None, help="override the judge model for llm_judge tasks")
     args = ap.parse_args(argv)
 
+    use_llm = preflight_llm(use_llm=not args.no_llm, context="synth-tasks")
     raw = json.loads(Path(args.project).read_text())
-    spec = extract_project(raw, use_llm=not args.no_llm)
+    spec = extract_project(raw, use_llm=use_llm)
     kwargs = {"judge_model": args.judge_model} if args.judge_model else {}
-    taskset = synthesize_taskset(spec, use_llm=not args.no_llm, **kwargs)
+    taskset = synthesize_taskset(spec, use_llm=use_llm, **kwargs)
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
