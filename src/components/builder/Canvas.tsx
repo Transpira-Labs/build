@@ -34,14 +34,29 @@ export function Canvas({
   const pan = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
   const [grabbing, setGrabbing] = useState(false);
 
-  // Wheel/trackpad scroll pans the canvas (it never zooms — zoom is the slider
-  // only). Non-passive so we can preventDefault and stop the page from scrolling.
+  // Wheel/trackpad gestures. A trackpad pinch arrives as a wheel event with
+  // ctrlKey set — that zooms toward the cursor. A plain scroll pans (it never
+  // zooms, so it can't be triggered accidentally; the slider is the other way in).
+  // Non-passive so we can preventDefault and stop the page from scrolling.
   useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      setView((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
+      if (e.ctrlKey) {
+        const rect = el.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        setView((v) => {
+          // deltaY is the pinch magnitude; scale it gently for smooth zooming.
+          const factor = Math.exp(-e.deltaY * 0.01);
+          const scale = Math.min(2.5, Math.max(0.3, v.scale * factor));
+          const k = scale / v.scale;
+          return { scale, x: mx - k * (mx - v.x), y: my - k * (my - v.y) };
+        });
+      } else {
+        setView((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
+      }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -153,7 +168,7 @@ export function Canvas({
             Drag blocks onto the canvas
           </p>
           <p className="text-xs text-muted-foreground/60">
-            Scroll or drag to pan · use the zoom slider, bottom-right
+            Scroll or drag to pan · pinch or use the slider to zoom
           </p>
         </div>
       )}
