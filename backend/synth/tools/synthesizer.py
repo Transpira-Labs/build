@@ -29,6 +29,7 @@ from synth.tools.extract import extract_project
 from synth.tools.llm import llm_synthesize_tool
 from synth.tools.match import match_template
 from synth.tools.smoke import compile_check, looks_risky
+from synth.tools.world import World, render_world, synthesize_world
 
 
 def ensure_docstring(source: str, description: str) -> str:
@@ -54,7 +55,7 @@ def ensure_docstring(source: str, description: str) -> str:
     return "\n".join(lines) + ("\n" if source.endswith("\n") else "")
 
 
-def synthesize_tool(block: ToolBlock, *, use_llm: bool = True) -> SynthesizedTool:
+def synthesize_tool(block: ToolBlock, *, use_llm: bool = True, world: World | None = None) -> SynthesizedTool:
     tmpl = match_template(block.functionality)
     if tmpl is not None:
         tool = SynthesizedTool(
@@ -68,7 +69,7 @@ def synthesize_tool(block: ToolBlock, *, use_llm: bool = True) -> SynthesizedToo
         tool.smoke = compile_check(tool)
         return tool
 
-    tool = llm_synthesize_tool(block) if use_llm else None
+    tool = llm_synthesize_tool(block, world=world) if use_llm else None
     if tool is not None:
         # FastMCP needs every tool to carry a description — guarantee a docstring.
         tool.source = ensure_docstring(tool.source, tool.description or block.functionality)
@@ -81,12 +82,16 @@ def synthesize_tool(block: ToolBlock, *, use_llm: bool = True) -> SynthesizedToo
 
 
 def synthesize_toolset(spec: ProjectSpec, *, use_llm: bool = True) -> SynthesizedToolset:
-    tools = [synthesize_tool(b, use_llm=use_llm) for b in spec.tools]
+    # A shared, frozen seed so the tools return consistent data the tasks can actually
+    # resolve (entity ids line up across tools). None when offline → tools stay standalone.
+    world = synthesize_world(spec, use_llm=use_llm)
+    tools = [synthesize_tool(b, use_llm=use_llm, world=world) for b in spec.tools]
     origins = sorted({t.origin.split(":")[0] for t in tools})
     return SynthesizedToolset(
         env_name=spec.env.name,
         tools=tools,
-        meta={"origins": origins, "count": len(tools)},
+        world=render_world(world) if world is not None else None,
+        meta={"origins": origins, "count": len(tools), "seeded": world is not None},
     )
 
 

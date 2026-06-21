@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,47 @@ def load_env() -> None:
             key, val = key.strip(), val.strip().strip('"').strip("'")
             os.environ.setdefault(key, val)  # setdefault → never override
     _loaded = True
+
+
+def llm_available() -> bool:
+    """True iff a HUD_API_KEY is configured (after loading .env files)."""
+    load_env()
+    return bool(os.environ.get("HUD_API_KEY"))
+
+
+def preflight_llm(*, use_llm: bool, context: str) -> bool:
+    """Preflight the LLM before a run; return whether the LLM is actually usable.
+
+    The failure we are guarding against is silent: with no HUD_API_KEY every gateway
+    call returns None and the synthesizers quietly degrade to templates/stubs, so a
+    run "succeeds" while producing an empty, LLM-free environment. When LLM mode is on
+    but no key is configured we make that loud here — once, on stderr — and report the
+    real (offline) capability back to the caller so the rest of the run is deterministic
+    and self-consistent rather than half-working.
+    """
+    if not use_llm:
+        return False
+    if llm_available():
+        return True
+    print(
+        "\n".join([
+            "",
+            "=" * 72,
+            f"  ERROR: HUD_API_KEY is not set — {context} cannot use the LLM.",
+            "",
+            "  All LLM synthesis (JSON extraction, tool codegen, task planning) is",
+            "  DISABLED. This run will fall back to templates + stubs and will NOT",
+            "  produce real, LLM-generated tool bodies or tasks.",
+            "",
+            "  Fix: set HUD_API_KEY in your environment, or in a .env file in the",
+            "  directory you launch the backend from (or ~/.hud/.env). To run offline",
+            "  on purpose and silence this message, pass --no-llm.",
+            "=" * 72,
+            "",
+        ]),
+        file=sys.stderr,
+    )
+    return False
 
 
 def get_client() -> tuple[Any, str] | None:

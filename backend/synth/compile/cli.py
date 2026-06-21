@@ -18,6 +18,7 @@ from pathlib import Path
 
 from synth.compile.registry import build_from_project
 from synth.tools.extract import extract_project
+from synth.tools.gateway import preflight_llm
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,7 +32,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="print the `hud deploy` command without running it")
     args = ap.parse_args(argv)
 
-    use_llm = not args.no_llm
+    use_llm = preflight_llm(use_llm=not args.no_llm, context="synth-env")
     raw = json.loads(Path(args.project).read_text())
 
     spec = extract_project(raw, use_llm=use_llm)

@@ -17,6 +17,7 @@ from pathlib import Path
 
 from synth.tools.assemble import assemble_module
 from synth.tools.extract import extract_project
+from synth.tools.gateway import preflight_llm
 from synth.tools.synthesizer import synthesize_toolset
 
 _SMOKE_ICON = {"passed": "✓", "compiled": "≈", "failed": "✗", "skipped": "·"}
@@ -30,9 +31,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="skip LLM extraction/codegen (heuristic parse + templates + stubs)")
     args = ap.parse_args(argv)
 
+    use_llm = preflight_llm(use_llm=not args.no_llm, context="synth-tools")
     raw = json.loads(Path(args.project).read_text())
-    spec = extract_project(raw, use_llm=not args.no_llm)
-    toolset = synthesize_toolset(spec, use_llm=not args.no_llm)
+    spec = extract_project(raw, use_llm=use_llm)
+    toolset = synthesize_toolset(spec, use_llm=use_llm)
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

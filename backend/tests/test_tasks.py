@@ -99,6 +99,24 @@ def test_llm_plan_is_used_when_available(monkeypatch):
     assert scn.smoke.status == "passed"
 
 
+def test_state_task_is_never_downgraded_to_deterministic(monkeypatch):
+    # The planner over-eagerly picks deterministic when a literal ("B") is embedded in a
+    # prose rubric. An author-chosen "state" task must stay llm_judge regardless — else it
+    # mis-grades correct work and saturates on the literal.
+    def det_plan(task, env_name, tool_names):
+        return ScenarioPlan(prompt="Pick the best option and justify it.", mode="deterministic", expected="B")
+
+    monkeypatch.setattr(S, "llm_plan_scenario", det_plan)
+    scn = synthesize_scenario(
+        _state("Which option is best, and why?", "Chooses B. Justifies it with sound reasoning."),
+        env_name="e", fn_name="pick", task_id="pick", use_llm=True,
+    )
+    assert scn.grading_mode == "llm_judge"
+    assert "await LLMJudgeGrader.grade(" in scn.source
+    # and it does NOT raise the deterministic open-ended warning
+    assert not any(d.code == "exact.looks_open_ended" for d in scn.diagnostics)
+
+
 def test_llm_bad_grader_falls_back_to_deterministic(monkeypatch):
     # the LLM picks the wrong expected value; smoke against the user's real answer fails
     def bad_plan(task, env_name, tool_names):

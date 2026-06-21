@@ -244,4 +244,8 @@ class SynthesizedToolset(BaseModel):
 
     env_name: str
     tools: list[SynthesizedTool] = Field(default_factory=list)
+    world: str | None = Field(
+        default=None,
+        description="rendered `WORLD = {...}` seed literal the tools read from (None if unseeded)",
+    )
     meta: dict[str, Any] = Field(default_factory=dict)
