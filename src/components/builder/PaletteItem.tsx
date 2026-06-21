@@ -1,12 +1,9 @@
 "use client";
 
-// Draggable blocks in the palette. A "main" item drags onto the canvas and can
-// be expanded to reveal the detail blocks that go under it. A "sub" item drags
-// into a container (indented by how deep it nests).
-//
-// Each block carries `kids-block` + a `--block-color` var; the Scratch-style
-// connector tabs those drive are defined in globals.css and only show in kids
-// mode. Labels, colours, and copy are identical in both modes.
+// Draggable blocks in the palette — the compact, header-only version of a block:
+// a solid coloured pill in the block's colour, no body. A "main" item drags onto
+// the canvas (and expands to reveal its detail blocks); a "sub" item drags into
+// a container, indented by how deep it nests.
 
 import { useDraggable } from "@dnd-kit/core";
 import { BLOCKS, type BlockKind, type MainKind } from "@/lib/blocks/model";
@@ -32,12 +29,15 @@ export function MainPaletteItem({
 
   return (
     <div
-      style={{ borderLeftColor: def.color, "--block-color": def.color } as React.CSSProperties}
-      className="kids-block relative flex items-center rounded-md border border-border border-l-[3px] bg-card shadow-sm"
+      style={{
+        "--block-color": def.color,
+        opacity: isDragging ? 0.4 : disabled ? 0.6 : 1,
+      } as React.CSSProperties}
+      className="blk relative flex overflow-hidden rounded-md blk-shadow"
     >
       <button
         onClick={onToggle}
-        className="flex shrink-0 items-center px-1.5 py-2 text-muted-foreground hover:text-foreground"
+        className="blk-header flex shrink-0 items-center px-1.5 text-white/70 hover:text-white"
         aria-label={expanded ? "Hide blocks" : "Show blocks"}
         aria-expanded={expanded}
       >
@@ -48,13 +48,13 @@ export function MainPaletteItem({
         {...(disabled ? {} : attributes)}
         {...(disabled ? {} : listeners)}
         disabled={disabled}
-        style={{ opacity: isDragging ? 0.4 : disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "grab" }}
-        className="flex flex-1 touch-none items-center gap-2 py-2 pr-2 text-left"
+        style={{ cursor: disabled ? "not-allowed" : "grab" }}
+        className="blk-header flex flex-1 touch-none items-center gap-2 py-2 pr-2 text-left text-white"
         title={disabled ? "Already on the canvas" : `Drag “${def.label}” onto the canvas`}
       >
-        <span className="font-display text-sm font-semibold">{def.label}</span>
+        <span className="font-display text-sm font-bold">{def.label}</span>
         {disabled && (
-          <span className="ml-auto inline-flex items-center gap-0.5 text-[11px] font-medium text-green-600">
+          <span className="ml-auto inline-flex items-center gap-0.5 text-[11px] font-medium text-white/85">
             <CheckIcon className="h-3 w-3" /> added
           </span>
         )}
@@ -82,9 +82,7 @@ export function SubPaletteItem({
   });
 
   // Indent one tier past the parent main block, stepping further for each extra
-  // level of nesting (double sub-blocks indent twice). Shrink the width by the
-  // same amount so the indented block stays inside the column instead of
-  // overflowing off the right edge.
+  // level of nesting; shrink width to match so it stays inside the column.
   const indent = (depth + 1) * 16;
 
   return (
@@ -94,21 +92,18 @@ export function SubPaletteItem({
       {...listeners}
       style={{
         opacity: isDragging ? 0.4 : 1,
-        borderLeftColor: def.color,
         "--block-color": def.color,
         marginLeft: indent,
         width: `calc(100% - ${indent}px)`,
       } as React.CSSProperties}
-      className="kids-block relative flex cursor-grab touch-none items-center gap-2 rounded-md border border-border border-l-2 bg-card px-2.5 py-1.5 text-left text-sm shadow-sm hover:bg-muted/40 active:cursor-grabbing"
+      className="blk relative blk-shadow blk-header flex cursor-grab touch-none items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-white active:cursor-grabbing"
       title={def.hint}
     >
-      <span className="font-medium">{def.label}</span>
-      <span className="ml-auto flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide">
-        {def.role === "group" && (
-          <span className="text-muted-foreground/60">holds more</span>
-        )}
-        {required && <span className="text-accent">needed</span>}
-        {def.repeatable && <span className="text-muted-foreground/60">many</span>}
+      <span className="font-semibold">{def.label}</span>
+      <span className="ml-auto flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-white/70">
+        {def.role === "group" && <span>holds more</span>}
+        {required && <span className="text-white">needed</span>}
+        {def.repeatable && <span>many</span>}
       </span>
     </button>
   );

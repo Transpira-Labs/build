@@ -18,9 +18,10 @@ export type BlockKind =
   // main (canvas-level)
   | "environment"
   | "tool"
-  | "task"
+  | "taskset"
   | "train"
   // group (nestable)
+  | "task"
   | "scoring"
   // leaf
   | "overview"
@@ -37,12 +38,12 @@ export type BlockKind =
   | "improvement";
 
 /** The four top-level block kinds. */
-export type MainKind = "environment" | "tool" | "task" | "train";
+export type MainKind = "environment" | "tool" | "taskset" | "train";
 
 export type BlockRole = "main" | "group" | "leaf";
 export type ValueType = "text" | "choice" | "number" | "reference";
 
-export const MAIN_KINDS: MainKind[] = ["environment", "tool", "task", "train"];
+export const MAIN_KINDS: MainKind[] = ["environment", "tool", "taskset", "train"];
 
 // ---------------------------------------------------------------------------
 // Values + tree
@@ -75,6 +76,9 @@ export interface ProjectDoc {
   version: number;
   /** Top-level main blocks, in z-order. */
   blocks: Block[];
+  /** UI-only: which main block each one is snapped beneath (childId -> parentId).
+   *  Persisted so connected stacks survive reloads; ignored by the IR. */
+  connections?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,19 +143,17 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     defaults: ["goal", "input", "output"],
     hasName: true,
   },
-  task: {
-    kind: "task",
+  taskset: {
+    kind: "taskset",
     role: "main",
-    label: "Task",
-    hint: "One thing to test.",
-    help: "A question and how to score the answer. Add one per test.",
+    label: "Taskset",
+    hint: "All the things to test.",
+    help: "Holds your tasks — the set the agent is tested and trained on. Add as many Tasks as you like.",
     color: "#9C4A55",
     tint: "#F1E3E5",
-    // Keep it minimal: just the question, any attached inputs, and scoring.
-    // The compile LLM reasons out the rest (I/O, tools) from these + the rubric.
-    accepts: ["prompt", "reference", "scoring"],
-    defaults: ["prompt", "scoring"],
-    hasName: true,
+    accepts: ["task"],
+    defaults: ["task"],
+    singleton: true,
   },
   train: {
     kind: "train",
@@ -167,6 +169,21 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
   },
 
   // --- group -------------------------------------------------------------
+  task: {
+    kind: "task",
+    role: "group",
+    label: "Task",
+    hint: "One thing to test.",
+    help: "A question and how to score the answer. Add as many Tasks as you want.",
+    color: "#B26B74",
+    tint: "#F4E6E8",
+    // Minimal: a question, any attached inputs, and scoring. The compile LLM
+    // reasons out the rest (I/O, tools) from these + the rubric.
+    accepts: ["prompt", "reference", "scoring"],
+    defaults: ["prompt", "scoring"],
+    hasName: true,
+    repeatable: true,
+  },
   scoring: {
     kind: "scoring",
     role: "group",
@@ -367,11 +384,41 @@ export function makeMain(kind: MainKind, x: number, y: number): Block {
 }
 
 export function emptyProject(name = "Untitled environment"): ProjectDoc {
-  return { id: nanoid(10), name, version: 1, blocks: [] };
+  return { id: nanoid(10), name, version: 1, blocks: [], connections: {} };
 }
 
 export function firstMain(doc: ProjectDoc, kind: MainKind): Block | undefined {
   return doc.blocks.find((b) => b.kind === kind);
+}
+
+// ---------------------------------------------------------------------------
+// Migration
+// ---------------------------------------------------------------------------
+
+/** Relocate top-level blocks that aren't main kinds into a proper parent.
+ *  Legacy data: Task used to be a top-level block; now it nests in a Taskset.
+ *  Called on load so old saved environments keep working. */
+export function normalizeDoc(doc: ProjectDoc): ProjectDoc {
+  const strays = doc.blocks.filter((b) => BLOCKS[b.kind].role !== "main");
+  if (strays.length === 0) return doc;
+
+  const blocks = doc.blocks.filter((b) => BLOCKS[b.kind].role === "main");
+  for (const stray of strays) {
+    let host = blocks.find((m) => isAllowed(stray.kind, m.kind));
+    if (!host) {
+      const hostKind = MAIN_KINDS.find((k) =>
+        BLOCKS[k].accepts?.includes(stray.kind),
+      );
+      if (!hostKind) continue; // nowhere sensible to put it — drop it
+      host = makeMain(hostKind, stray.x ?? 40, stray.y ?? 40);
+      blocks.push(host);
+    }
+    const { x: _x, y: _y, ...nested } = stray;
+    void _x;
+    void _y;
+    host.children = [...host.children, nested];
+  }
+  return { ...doc, blocks };
 }
 
 // ---------------------------------------------------------------------------

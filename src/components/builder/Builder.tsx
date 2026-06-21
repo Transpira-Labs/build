@@ -5,7 +5,7 @@
 // block into a container snaps it into the nearest accepting block (which may be
 // nested); dragging a placed block reorders or moves it.
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -17,6 +17,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
@@ -37,16 +38,83 @@ type ActiveDrag =
   | { type: "move"; id: string }
   | null;
 
+// Snap thresholds for connecting main blocks (px).
+const HSNAP = 30;
+const VSNAP = 22;
+
 export function Builder() {
   const { doc, dispatch } = useProject();
   const [active, setActive] = useState<ActiveDrag>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const pointer = useRef({ x: 0, y: 0 });
 
+  // Connection links live in the doc (childId -> parentId snapped beneath) so
+  // they persist across reloads/saves. docRef gives callbacks the latest doc
+  // (incl. connections) without re-subscribing.
+  const docRef = useRef(doc);
+  useEffect(() => {
+    docRef.current = doc;
+  });
+
+  // Dragging state for the connected chain (head + blocks snapped below).
+  const chainRef = useRef<string[]>([]);
+  const [followers, setFollowers] = useState<string[]>([]);
+  const [followDelta, setFollowDelta] = useState({ x: 0, y: 0 });
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  // Measured height of a placed main block (varies with content/collapse).
+  const heightOf = (id: string) =>
+    (canvasRef.current?.querySelector(`[data-block-id="${id}"]`) as HTMLElement | null)
+      ?.offsetHeight ?? 0;
+
+  // `headId` + everything connected beneath it (a linear chain).
+  const computeChain = (headId: string): string[] => {
+    const conn = docRef.current.connections ?? {};
+    const chain = [headId];
+    let cur = headId;
+    while (chain.length < docRef.current.blocks.length) {
+      const child = Object.keys(conn).find(
+        (c) => conn[c] === cur && !chain.includes(c),
+      );
+      if (!child) break;
+      chain.push(child);
+      cur = child;
+    }
+    return chain;
+  };
+
+  // Re-stack the blocks connected below `id` so a height change (expand/collapse,
+  // adding sub-blocks) never leaves them overlapping or gapped.
+  const reflow = useCallback((id: string) => {
+    const blocks = docRef.current.blocks;
+    const conn = docRef.current.connections ?? {};
+    const byId = (bid: string) => blocks.find((b) => b.id === bid);
+    let cur = byId(id);
+    if (!cur) return;
+    const curX = cur.x ?? 0;
+    let curY = cur.y ?? 0;
+    const moves: { id: string; x: number; y: number }[] = [];
+    const seen = new Set([id]);
+    while (cur) {
+      const childId = Object.keys(conn).find(
+        (c) => conn[c] === cur!.id && !seen.has(c),
+      );
+      const child = childId ? byId(childId) : undefined;
+      if (!child) break;
+      const ny = curY + heightOf(cur.id);
+      if ((child.y ?? 0) !== ny || (child.x ?? 0) !== curX) {
+        moves.push({ id: child.id, x: curX, y: ny });
+      }
+      seen.add(child.id);
+      cur = child;
+      curY = ny; // curX unchanged — the stack shares one left edge
+    }
+    if (moves.length) dispatch({ type: "moveMany", moves });
+  }, [dispatch]);
 
   // When adding from the palette, target the innermost container under the
   // pointer; reordering and moving use closest-center.
@@ -98,7 +166,17 @@ export function Builder() {
       setActive({ type: "palette-sub", kind: data.kind, from: data.from });
     else if (data.type === "sub")
       setActive({ type: "sub", id: data.id, kind: data.kind, parentId: data.parentId });
-    else if (data.type === "move") setActive({ type: "move", id: data.id });
+    else if (data.type === "move") {
+      setActive({ type: "move", id: data.id });
+      const chain = computeChain(data.id);
+      chainRef.current = chain;
+      setFollowers(chain.slice(1)); // everything below the head moves with it
+      setFollowDelta({ x: 0, y: 0 });
+    }
+  }
+
+  function onDragMove(e: DragMoveEvent) {
+    if (chainRef.current.length > 1) setFollowDelta({ x: e.delta.x, y: e.delta.y });
   }
 
   function onDragEnd(e: DragEndEvent) {
@@ -154,17 +232,69 @@ export function Builder() {
       return;
     }
 
-    // 4) Move a placed main block.
+    // 4) Move a placed main block — plus any blocks snapped below it — and snap
+    //    the head under a nearby block so they "click together".
     if (a.type === "move") {
-      const block = doc.blocks.find((b) => b.id === a.id);
-      if (block) {
-        dispatch({
-          type: "moveMain",
-          id: a.id,
-          x: Math.max(0, (block.x ?? 0) + e.delta.x),
-          y: Math.max(0, (block.y ?? 0) + e.delta.y),
-        });
+      const chain = chainRef.current.length ? chainRef.current : [a.id];
+      chainRef.current = [];
+      setFollowers([]);
+      setFollowDelta({ x: 0, y: 0 });
+
+      const head = doc.blocks.find((b) => b.id === a.id);
+      if (!head) return;
+
+      let nx = (head.x ?? 0) + e.delta.x;
+      let ny = (head.y ?? 0) + e.delta.y;
+
+      // Snap the head under a nearby (non-chain) block. Forgiving on height: drop
+      // the head's top anywhere over the target's lower half — or just below it —
+      // and it clicks under the target. (A tight bottom-edge test only worked for
+      // short/collapsed blocks; tall expanded blocks were impossible to hit.)
+      let best: { id: string; d: number } | null = null;
+      for (const t of doc.blocks) {
+        if (chain.includes(t.id)) continue;
+        const ty = t.y ?? 0;
+        const th = heightOf(t.id);
+        const xAligned = Math.abs(nx - (t.x ?? 0)) < HSNAP;
+        const inZone = ny >= ty + th * 0.4 && ny <= ty + th + VSNAP;
+        if (xAligned && inZone) {
+          const d = Math.abs(ny - (ty + th));
+          if (!best || d < best.d) best = { id: t.id, d };
+        }
       }
+
+      // Head disconnects from any previous parent; reconnect only if it snapped.
+      const conn = doc.connections ?? {};
+      let newParent: string | null = null;
+      if (best) {
+        // Append to the bottom of the target's existing stack.
+        let parentId = best.id;
+        for (let i = 0; i < doc.blocks.length; i++) {
+          const child = Object.keys(conn).find(
+            (c) => conn[c] === parentId && !chain.includes(c),
+          );
+          if (!child) break;
+          parentId = child;
+        }
+        const p = doc.blocks.find((b) => b.id === parentId)!;
+        nx = p.x ?? 0;
+        ny = (p.y ?? 0) + heightOf(parentId);
+        newParent = parentId;
+      }
+
+      const dx = nx - (head.x ?? 0);
+      const dy = ny - (head.y ?? 0);
+      const moves = chain
+        .map((id) => doc.blocks.find((b) => b.id === id))
+        .filter((b): b is NonNullable<typeof b> => !!b)
+        .map((b) => ({
+          id: b.id,
+          x: Math.max(0, (b.x ?? 0) + dx),
+          y: Math.max(0, (b.y ?? 0) + dy),
+        }));
+      dispatch({ type: "moveMany", moves });
+      dispatch({ type: "connect", childId: a.id, parentId: newParent });
+      dispatch({ type: "bringToFront", id: a.id });
     }
   }
 
@@ -175,16 +305,30 @@ export function Builder() {
     <DndContext
       sensors={sensors}
       collisionDetection={collision}
+      // Auto-scroll inflates the drop delta on the overflow-auto canvas (a block
+      // dragged down grows the scroll area, dnd-kit scrolls, and that scroll is
+      // added into delta.y) — which made blocks jump down on release.
+      autoScroll={false}
       onDragStart={onDragStart}
+      onDragMove={onDragMove}
       onDragEnd={onDragEnd}
       onDragCancel={() => {
         setActive(null);
+        chainRef.current = [];
+        setFollowers([]);
+        setFollowDelta({ x: 0, y: 0 });
         window.removeEventListener("pointermove", trackPointer);
       }}
     >
       <div className="flex h-full min-h-0">
         <Palette />
-        <Canvas activeChildKind={activeChildKind} canvasRef={canvasRef} />
+        <Canvas
+          activeChildKind={activeChildKind}
+          canvasRef={canvasRef}
+          followers={followers}
+          followDelta={followDelta}
+          onResize={reflow}
+        />
       </div>
 
       <DragOverlay dropAnimation={null}>
@@ -198,13 +342,10 @@ export function Builder() {
 
 function Ghost({ kind }: { kind: BlockKind }) {
   const def = BLOCKS[kind];
-  const main = def.role === "main";
   return (
     <div
-      style={{ borderLeftColor: main ? undefined : def.color, borderTopColor: main ? def.color : undefined }}
-      className={`rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium shadow-lg ${
-        main ? "border-t-[3px] font-display font-semibold" : "border-l-2"
-      }`}
+      style={{ "--block-color": def.color } as React.CSSProperties}
+      className="blk blk-shadow blk-header rounded-md px-3 py-1.5 text-sm font-bold text-white"
     >
       {def.label}
     </div>

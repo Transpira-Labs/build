@@ -6,7 +6,7 @@ import { BLOCKS, type Block } from "@/lib/blocks/model";
 import { useProject } from "@/state/project";
 
 const field =
-  "w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-ring";
+  "w-full rounded-md border border-black/10 bg-white/85 px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:bg-white focus:ring-2 focus:ring-ring";
 
 export function FieldEditor({ block }: { block: Block }) {
   const { dispatch } = useProject();

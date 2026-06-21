@@ -19,7 +19,9 @@
   --color-ring: oklch(0.56 0.15 52 / 0.5);
 
   --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-source-serif), ui-serif, Georgia, serif;
+  /* Sans-serif throughout — display (headings/labels) uses Montserrat too, just
+     heavier. (Source Serif is still loaded; swap it back here for the serif look.) */
+  --font-display: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
 
   --radius: 0.75rem;
 }
@@ -51,16 +53,11 @@ body {
   background-size: 22px 22px;
 }
 
-/* ── Kids Mode: a friendlier, Scratch-style skin ───────────────────────────
+/* ── Kids Mode: a friendlier skin ──────────────────────────────────────────
    A scoped overlay — every rule lives under .kids-mode so normal mode is
-   untouched, and colours are deliberately left alone. What changes: a rounded,
-   approachable (but not childish) typeface, slightly squarer corners than the
-   smooth default, a chunkier outline, and — the main thing — Scratch puzzle
-   connector tabs on every block so they read as pieces that snap together.
-   Each block carries `.kids-block` and a `--block-color` var (its own accent);
-   the tabs below are drawn in that colour and only appear in kids mode. The
-   kids rules are two classes deep, so they win on specificity without
-   !important. */
+   untouched. The physical block chrome (coloured header, knobs, depth — see
+   below) is shared by both modes; kids mode only swaps in a rounded, friendly
+   typeface, slightly squarer corners, and a chunkier outline. */
 .kids-mode {
   --font-sans: ui-rounded, "SF Pro Rounded", "Varela Round", "Segoe UI",
     system-ui, sans-serif;
@@ -89,25 +86,32 @@ body {
   border-width: 2px;
 }
 
-/* Scratch-style connector tabs. A bump on top and bottom of every block, in the
-   block's own colour, so stacked/placed blocks look like they snap together.
-   Every .kids-block already establishes a positioning context of its own
-   (the canvas block is absolute, nested nodes and palette items are relative),
-   so the tabs anchor correctly without us overriding `position` here. */
-.kids-mode .kids-block::before,
-.kids-mode .kids-block::after {
-  content: "";
-  position: absolute;
-  left: 16px;
-  width: 26px;
-  height: 7px;
-  background: var(--block-color, currentColor);
+/* ── Physical block chrome (both modes) ────────────────────────────────────
+   Blocks read as solid building pieces: a coloured header, a barely-tinted
+   body, a hard drop-shadow for depth, and connector knobs on stacked (nested)
+   blocks so they look like they snap together. The darker shadow shade and the
+   light body shade are both mixed from the block's own `--block-color`, so a
+   single variable drives the whole colour triad. Kids mode keeps its rounder
+   font / squarer corners; the chrome itself is shared. */
+/* No `position` here — it's unlayered and would override Tailwind's layered
+   `absolute`/`relative` utilities. Each block sets its own position class
+   (`absolute` for canvas mains, `relative` for nested nodes / palette chips),
+   which also anchors the knobs and help popover. */
+.blk {
+  --bd: color-mix(in srgb, var(--block-color, #8c7b63) 70%, #2b1d10);
+  --bl: color-mix(in srgb, var(--block-color, #8c7b63) 12%, #ffffff);
 }
-.kids-mode .kids-block::before {
-  top: -6px;
-  border-radius: 5px 5px 0 0;
+/* Hard offset shadow (depth) + a faint ambient one so it lifts off the canvas. */
+.blk-shadow {
+  box-shadow: 0 2px 0 0 var(--bd), 0 7px 14px -9px rgba(60, 40, 20, 0.55);
 }
-.kids-mode .kids-block::after {
-  bottom: -6px;
-  border-radius: 0 0 5px 5px;
+.blk-header {
+  background: var(--block-color, #8c7b63);
+  color: #fff;
+}
+.blk-body {
+  background: var(--bl);
+}
+.blk-arm {
+  background: var(--block-color, #8c7b63);
 }

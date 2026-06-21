@@ -22,6 +22,7 @@ import {
   makeBlock,
   makeMain,
   mapBlock,
+  normalizeDoc,
   removeFromForest,
   type Block,
   type BlockKind,
@@ -42,6 +43,8 @@ type Action =
       y: number;
     }
   | { type: "moveMain"; id: string; x: number; y: number }
+  | { type: "moveMany"; moves: { id: string; x: number; y: number }[] }
+  | { type: "connect"; childId: string; parentId: string | null }
   | { type: "bringToFront"; id: string }
   | { type: "removeBlock"; id: string }
   | { type: "renameBlock"; id: string; name: string }
@@ -54,7 +57,7 @@ type Action =
 function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
   switch (action.type) {
     case "load":
-      return action.doc;
+      return normalizeDoc(action.doc);
 
     case "setName":
       return { ...doc, name: action.name };
@@ -99,6 +102,24 @@ function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
         })),
       };
 
+    case "moveMany": {
+      const by = new Map(action.moves.map((m) => [m.id, m]));
+      return {
+        ...doc,
+        blocks: doc.blocks.map((b) => {
+          const m = by.get(b.id);
+          return m ? { ...b, x: m.x, y: m.y } : b;
+        }),
+      };
+    }
+
+    case "connect": {
+      const connections = { ...(doc.connections ?? {}) };
+      if (action.parentId) connections[action.childId] = action.parentId;
+      else delete connections[action.childId];
+      return { ...doc, connections };
+    }
+
     case "bringToFront": {
       const block = doc.blocks.find((b) => b.id === action.id);
       if (!block) return doc;
@@ -108,8 +129,18 @@ function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
       };
     }
 
-    case "removeBlock":
-      return { ...doc, blocks: removeFromForest(doc.blocks, action.id) };
+    case "removeBlock": {
+      const connections = { ...(doc.connections ?? {}) };
+      delete connections[action.id];
+      for (const k of Object.keys(connections)) {
+        if (connections[k] === action.id) delete connections[k];
+      }
+      return {
+        ...doc,
+        blocks: removeFromForest(doc.blocks, action.id),
+        connections,
+      };
+    }
 
     case "renameBlock":
       return {
@@ -181,7 +212,7 @@ export function ProjectProvider({
   initial?: ProjectDoc;
 }) {
   const [doc, dispatch] = useReducer(reducer, initial ?? null, (d) =>
-    d ?? emptyProject(),
+    d ? normalizeDoc(d) : emptyProject(),
   );
   const value = useMemo(() => ({ doc, dispatch }), [doc]);
   return (

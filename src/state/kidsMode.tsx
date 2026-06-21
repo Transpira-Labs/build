@@ -51,7 +51,10 @@ function write(kids: boolean): void {
 }
 
 export function useKidsMode() {
-  const kids = useSyncExternalStore(subscribe, read, getServerSnapshot);
+  const stored = useSyncExternalStore(subscribe, read, getServerSnapshot);
   const toggle = useCallback(() => write(!read()), []);
-  return { kids, toggle };
+  // Kids mode is currently switched off everywhere (its toggle is hidden). The
+  // store wiring above is kept intact — to re-enable, return `stored` as `kids`.
+  void stored;
+  return { kids: false, toggle };
 }

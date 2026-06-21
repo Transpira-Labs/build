@@ -19,8 +19,8 @@ export function HelpPopover({ kind }: { kind: BlockKind }) {
         onClick={() => setOpen((o) => !o)}
         className={`rounded-full p-0.5 transition-colors ${
           open
-            ? "bg-muted text-foreground"
-            : "text-muted-foreground/40 hover:bg-muted hover:text-foreground"
+            ? "bg-white/20 text-white"
+            : "text-white/55 hover:bg-white/15 hover:text-white"
         }`}
         aria-label={`What goes in the ${def.label} block?`}
         aria-expanded={open}

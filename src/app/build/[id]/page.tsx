@@ -19,6 +19,9 @@ const Builder = dynamic(
   { ssr: false, loading: () => <div className="canvas-grid h-full w-full" /> },
 );
 
+// Hidden for now — kept so kids mode can be re-enabled by un-commenting the
+// <KidsModeToggle /> render above.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function KidsModeToggle() {
   const { kids, toggle } = useKidsMode();
   return (
@@ -71,7 +74,8 @@ function TopBar() {
       />
 
       <div className="ml-auto flex items-center gap-2 text-sm">
-        <KidsModeToggle />
+        {/* Kids mode toggle hidden for now (component kept below for later). */}
+        {/* <KidsModeToggle /> */}
         <button
           onClick={() => setPeek((p) => !p)}
           className="rounded-md px-2.5 py-1.5 font-medium text-muted-foreground hover:bg-muted"

@@ -99,23 +99,28 @@ function deepText(block: Block, kind: BlockKind): string[] {
 // Projection: ProjectDoc → IR
 // ---------------------------------------------------------------------------
 
+/** Every block of a kind anywhere in the tree (Tasks live inside the Taskset). */
+function collect(forest: Block[], kind: BlockKind, out: Block[] = []): Block[] {
+  for (const b of forest) {
+    if (b.kind === kind) out.push(b);
+    collect(b.children, kind, out);
+  }
+  return out;
+}
+
 export function toIR(doc: ProjectDoc): IR {
   const env = firstMain(doc, "environment");
 
-  const tools: IRTool[] = doc.blocks
-    .filter((b) => b.kind === "tool")
-    .map((t) => ({
-      id: t.id,
-      name: t.name?.trim() || "tool",
-      description: childText(t, "goal"),
-      inputs: childText(t, "input"),
-      returns: childText(t, "output"),
-      backend: { type: "stub" as const },
-    }));
+  const tools: IRTool[] = collect(doc.blocks, "tool").map((t) => ({
+    id: t.id,
+    name: t.name?.trim() || "tool",
+    description: childText(t, "goal"),
+    inputs: childText(t, "input"),
+    returns: childText(t, "output"),
+    backend: { type: "stub" as const },
+  }));
 
-  const tasks: IRTask[] = doc.blocks
-    .filter((b) => b.kind === "task")
-    .map((t) => ({
+  const tasks: IRTask[] = collect(doc.blocks, "task").map((t) => ({
       id: t.id,
       name: t.name?.trim() || "task",
       prompt: childText(t, "prompt"),

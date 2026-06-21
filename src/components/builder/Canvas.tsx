@@ -13,9 +13,15 @@ import { MainBlock } from "./MainBlock";
 export function Canvas({
   activeChildKind,
   canvasRef,
+  followers,
+  followDelta,
+  onResize,
 }: {
   activeChildKind: BlockKind | null;
   canvasRef: RefObject<HTMLDivElement | null>;
+  followers: string[];
+  followDelta: { x: number; y: number };
+  onResize: (id: string) => void;
 }) {
   const { doc } = useProject();
   const { kids } = useKidsMode();
@@ -43,7 +49,15 @@ export function Canvas({
       )}
 
       {doc.blocks.map((block) => (
-        <MainBlock key={block.id} block={block} activeChildKind={activeChildKind} />
+        <MainBlock
+          key={block.id}
+          block={block}
+          activeChildKind={activeChildKind}
+          following={followers.includes(block.id) ? followDelta : null}
+          onResize={onResize}
+          // Snapped beneath another block → show a seam highlight at its top.
+          connected={!!doc.connections?.[block.id]}
+        />
       ))}
     </div>
   );
