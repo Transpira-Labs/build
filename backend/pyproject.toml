@@ -15,6 +15,7 @@ synth-tools = "synth.tools.cli:main"
 synth-tasks = "synth.tasks.cli:main"
 synth-env = "synth.compile.cli:main"
 synth-eval = "synth.eval.cli:main"
+synth-train = "synth.train.cli:main"
 
 [build-system]
 requires = ["hatchling"]
