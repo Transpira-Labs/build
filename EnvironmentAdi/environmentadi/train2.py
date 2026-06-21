@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -27,10 +28,12 @@ from .config import load_hud_key
 
 ROOT = Path(__file__).parent.parent
 PLANS = ROOT / ".generated" / "v3_plans"
-STATUS = ROOT / ".generated" / "training_status.json"
+STATUS = Path(os.environ["TRAIN2_STATUS"]) if os.environ.get("TRAIN2_STATUS") \
+    else ROOT / ".generated" / "training_status.json"
 
-# builder -> (fork slug, env file)
-FORKS = {
+# builder -> fork slug. Override via TRAIN2_FORKS (JSON) to train a different
+# trainee (e.g. the Llama Gemma-equivalent) on the SAME builder envs.
+FORKS = json.loads(os.environ["TRAIN2_FORKS"]) if os.environ.get("TRAIN2_FORKS") else {
     "gpt-5.5": "trained-on-gpt-5-5-supchain-env",
     "claude-opus-4-8": "trained-on-opus-4-8-env",
 }
