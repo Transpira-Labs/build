@@ -48,7 +48,9 @@ def test_params_as_dict_of_value_lists_expand():
     ))
     src = ts.render()
     assert "async def how_many_letter" in src
-    assert "prompt = f\"How many {letter}s in {word}?\"" in src
+    # still a param f-string (now with the deterministic answer-format directive appended)
+    assert "prompt = f\"How many {letter}s in {word}?" in src
+    assert "ONLY the final number" in src  # numeric answer → numeric format directive
     # 2 words × 1 letter = 2 concrete tasks, args bound in the Taskset
     assert src.count("how_many_letter") >= 3  # def + 2 calls
     assert 'word="raspberry"' in src

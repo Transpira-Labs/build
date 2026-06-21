@@ -1,0 +1,9 @@
+[
+  { "type": "env", "name": "text_lab", "description": "An agent that runs code, does math, and reads files to analyze text." },
+  { "type": "tool", "name": "run_python", "functionality": "Execute a Python script and return its stdout." },
+  { "type": "tool", "name": "calculator", "functionality": "Evaluate an arithmetic expression and return the result." },
+  { "type": "tool", "name": "read_file", "functionality": "Read a text file from the workspace and return its contents." },
+  { "type": "task", "prompt": "Use run_python to count the words in 'the quick brown fox jumps'.", "answerType": "exact", "answer": "5" },
+  { "type": "task", "prompt": "Compute 144 / 12 with the calculator.", "answerType": "exact", "answer": "12" },
+  { "type": "task", "prompt": "Read report.txt and summarize what it contains.", "answerType": "state", "answer": "Gives a faithful, concise summary of the file's contents." }
+]

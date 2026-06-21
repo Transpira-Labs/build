@@ -147,3 +147,19 @@ def test_from_v1_flat_block_list():
     assert spec.env.name == "myenv"
     assert spec.tools[0].name == "calc"
     assert spec.tasks[0].answer_type == "exact"
+
+
+def test_ensure_docstring_injects_when_missing():
+    from synth.tools.synthesizer import ensure_docstring
+    src = "def read_file(file_path: str) -> str:\n    with open(file_path) as f:\n        return f.read()\n"
+    fixed = ensure_docstring(src, "Read a text file and return its contents.")
+    import ast as _ast
+    fn = _ast.parse(fixed).body[0]
+    assert _ast.get_docstring(fn) == "Read a text file and return its contents."
+    compile(fixed, "t", "exec")
+
+
+def test_ensure_docstring_noop_when_present():
+    from synth.tools.synthesizer import ensure_docstring
+    src = 'def f(x: str) -> str:\n    """already documented."""\n    return x\n'
+    assert ensure_docstring(src, "other") == src

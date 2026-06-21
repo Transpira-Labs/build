@@ -14,6 +14,8 @@ executed here — that's deferred to HUD's sandbox.
 
 from __future__ import annotations
 
+import ast
+
 from synth.contracts import (
     ProjectSpec,
     SynthesizedTool,
@@ -27,6 +29,29 @@ from synth.tools.extract import extract_project
 from synth.tools.llm import llm_synthesize_tool
 from synth.tools.match import match_template
 from synth.tools.smoke import compile_check, looks_risky
+
+
+def ensure_docstring(source: str, description: str) -> str:
+    """Guarantee the function has a docstring (FastMCP requires a tool description).
+
+    Templates and stubs already include one; LLM codegen sometimes omits it, which makes
+    `server.tool(fn)` reject the whole capability at runtime. If missing, inject the tool's
+    description as the docstring; a no-op when one is already present.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return source
+    fn = next((n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))), None)
+    if fn is None or not fn.body or ast.get_docstring(fn) is not None:
+        return source
+
+    first = fn.body[0]
+    doc = (description or fn.name).replace('"""', "'''").strip() or fn.name
+    indent = " " * first.col_offset
+    lines = source.splitlines()
+    lines.insert(first.lineno - 1, f'{indent}"""{doc}"""')
+    return "\n".join(lines) + ("\n" if source.endswith("\n") else "")
 
 
 def synthesize_tool(block: ToolBlock, *, use_llm: bool = True) -> SynthesizedTool:
@@ -45,6 +70,8 @@ def synthesize_tool(block: ToolBlock, *, use_llm: bool = True) -> SynthesizedToo
 
     tool = llm_synthesize_tool(block) if use_llm else None
     if tool is not None:
+        # FastMCP needs every tool to carry a description — guarantee a docstring.
+        tool.source = ensure_docstring(tool.source, tool.description or block.functionality)
         # Trust-but-verify: if the source looks risky, force the sandbox gate on.
         tool.needs_sandbox = tool.needs_sandbox or looks_risky(tool.source)
         tool.smoke = compile_check(tool)

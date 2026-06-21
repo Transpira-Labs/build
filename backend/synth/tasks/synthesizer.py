@@ -28,6 +28,7 @@ from synth.tasks.grade import (
     build_template_source,
     py_literal,
     render_plan,
+    with_answer_format,
 )
 from synth.tasks.llm import llm_plan_scenario
 from synth.tasks.smoke import smoke_scenario
@@ -117,13 +118,16 @@ def _fallback_plan(task: NormalizedTask) -> ScenarioPlan:
 def _render(plan: ScenarioPlan, task: NormalizedTask, fn_name: str, task_id: str, judge_model: str, origin: str) -> SynthesizedScenario:
     names = task.param_names
     body, imports, mode = render_plan(plan, judge_model, param_names=names)
+    # deterministic grading is only as reliable as the answer's format — pin it in the prompt.
+    prompt = with_answer_format(plan.prompt, plan.expected or "", plan.match, names) \
+        if mode == "deterministic" else plan.prompt
     source = build_template_source(
-        _ENV_VAR, task_id, fn_name, plan.prompt, body,
+        _ENV_VAR, task_id, fn_name, prompt, body,
         signature=_signature(task.params), param_names=names,
     )
     calls, _capped = _calls(fn_name, task.params)
     return SynthesizedScenario(
-        id=task_id, fn_name=fn_name, prompt=plan.prompt, grading_mode=mode,
+        id=task_id, fn_name=fn_name, prompt=prompt, grading_mode=mode,
         source=source, imports=imports, calls=calls, origin=origin,
     )
 

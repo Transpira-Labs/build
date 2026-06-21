@@ -92,7 +92,9 @@ def test_llm_plan_is_used_when_available(monkeypatch):
     scn = synthesize_scenario(_exact("What is 17 * 23?", "391"), env_name="e",
                               fn_name="mul", task_id="mul", use_llm=True)
     assert scn.origin == "llm"
-    assert scn.prompt == "Compute it."
+    # the planner's prompt is kept, with the deterministic answer-format directive appended
+    assert scn.prompt.startswith("Compute it.")
+    assert "ONLY the final number" in scn.prompt
     assert scn.grading_mode == "deterministic"
     assert scn.smoke.status == "passed"
 
@@ -140,3 +142,26 @@ def test_tool_cross_check_and_single_task_hint():
     assert ts.env_name == "notes"
     assert any(d.code == "task.no_tool_reference" for d in ts.all_diagnostics)
     assert any(d.code == "suite.single_task" for d in ts.all_diagnostics)
+
+
+# ── deterministic answer-format directive (scalable grading reliability) ────
+def test_exact_prompts_get_an_answer_format_directive():
+    ts = synthesize_taskset(
+        _project([
+            _exact("Compute 144 / 12.", "12"),                  # numeric
+            _exact("What is the capital of France?", "Paris"),  # text
+            _state("Summarize the page.", "A faithful summary."),  # judge — must be left alone
+        ]),
+        use_llm=False,
+    )
+    num, txt, judge = ts.scenarios
+    assert "ONLY the final number" in num.prompt and num.prompt.startswith("Compute 144 / 12.")
+    assert "ONLY the exact answer" in txt.prompt
+    # state/judge prompts are NOT constrained — the judge absorbs phrasing
+    assert "Reply with ONLY" not in judge.prompt
+
+
+def test_directive_not_duplicated_when_prompt_already_constrains():
+    from synth.tasks.grade import with_answer_format
+    already = "What is 2+2? Reply with only the number."
+    assert with_answer_format(already, "4", "numeric") == already

@@ -11,12 +11,15 @@ dependencies = [
 ]
 
 [project.scripts]
-synth-tools = "synth.tools.cli:main"
-synth-tasks = "synth.tasks.cli:main"
-synth-env = "synth.compile.cli:main"
-synth-eval = "synth.eval.cli:main"
-synth-train = "synth.train.cli:main"
-synth-registry = "synth.registry.cli:main"
+# Active pipeline surface — steps 1-6 (validate → tools → tasks → compile → deploy → baseline).
+synth-tools = "synth.tools.cli:main"      # steps 1-2
+synth-tasks = "synth.tasks.cli:main"      # step 3
+synth-env = "synth.compile.cli:main"      # steps 4-5 (compile + --deploy)
+synth-eval = "synth.eval.cli:main"        # step 6 (baseline)
+# Steps 7-8 are intentionally ISOLATED for now (front-end integration first). The code is kept
+# under synth/train/ and synth/registry/ (and their tests); re-enable by restoring these entries:
+#   synth-train = "synth.train.cli:main"        # step 7 (training)
+#   synth-registry = "synth.registry.cli:main"  # step 8 (registry + dashboard)
 
 [build-system]
 requires = ["hatchling"]

@@ -69,6 +69,34 @@ def parse_number(s: str | None) -> float | None:
         return None
 
 
+# ── answer-format directive (makes deterministic grading reliable) ───────────
+# A deterministic grader reads a *specific* form of the answer (numeric_match takes the
+# first number; exact_match/contains compares text). Rather than make the grader guess at
+# every possible phrasing, we constrain the agent's OUTPUT in the prompt to exactly that
+# form. Keyed to the same numeric/text decision emit_exact_grader makes, so prompt and
+# grader can't disagree. Applied to every deterministic task, not any one domain.
+_NUMERIC_HINT = "Reply with ONLY the final number - no units, words, working, or other text."
+_TEXT_HINT = "Reply with ONLY the exact answer requested - no explanation, extra words, or punctuation."
+_HINT_MARKERS = ("reply with only", "respond with only", "answer with only",
+                 "only the number", "only the exact", "with just the")
+
+
+def answer_format_hint(expected: str, match: str = "auto", param_names=()) -> str:
+    """The directive that shapes the agent's output to what the deterministic grader reads."""
+    templated = references(expected, param_names)
+    num = parse_number(expected) if match in ("auto", "numeric") and not templated else None
+    return _NUMERIC_HINT if num is not None else _TEXT_HINT
+
+
+def with_answer_format(prompt: str, expected: str, match: str = "auto", param_names=()) -> str:
+    """Append the format directive to a deterministic prompt (skipped if already constrained)."""
+    text = prompt or ""
+    if any(marker in text.lower() for marker in _HINT_MARKERS):
+        return text  # the prompt (or the LLM's refinement) already pins the format
+    hint = answer_format_hint(expected, match, param_names)
+    return f"{text.rstrip()}\n\n{hint}" if text.strip() else hint
+
+
 # ── runtime grader (single source of truth, used by the smoke check) ─────────
 def score_exact(answer: str, expected: str, match: str = "auto") -> float:
     """Deterministically score `answer` against the literal `expected`.
