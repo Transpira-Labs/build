@@ -10,6 +10,8 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import {
   BLOCKS,
   canAdd,
+  MAIN_BODY_MAX,
+  MAIN_BODY_MIN,
   MAIN_WIDTH,
   MAIN_WIDTH_MAX,
   MAIN_WIDTH_MIN,
@@ -83,31 +85,58 @@ export function MainBlock({
   const accepts = activeChildKind ? canAdd(block, activeChildKind) : false;
   const stop = (e: React.PointerEvent) => e.stopPropagation();
 
-  // Right-edge width handle: drag to set this block's width (persisted per block).
-  // Deltas are divided by the canvas zoom since the block lives in a scaled layer.
-  const widthDrag = useRef<{ startX: number; startW: number } | null>(null);
-  const onHandleDown = (e: React.PointerEvent) => {
+  // Resize handles: drag the right edge for width, the bottom edge for the body
+  // height, or the corner for both (persisted per block). Deltas are divided by
+  // the canvas zoom since the block lives in a scaled layer.
+  const mouthRef = useRef<HTMLDivElement | null>(null);
+  const resizeDrag = useRef<{
+    axis: "x" | "y" | "xy";
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
+  const clamp = (v: number, lo: number, hi: number) => Math.round(Math.min(hi, Math.max(lo, v)));
+  // Axis comes off the handle element's data-axis, so these stay stable handlers
+  // (no per-render factory) and only touch refs inside the event, never in render.
+  const onResizeDown = (e: React.PointerEvent) => {
+    const axis = (e.currentTarget as HTMLElement).dataset.axis as "x" | "y" | "xy";
     e.stopPropagation();
     e.preventDefault();
-    widthDrag.current = { startX: e.clientX, startW: block.width ?? MAIN_WIDTH };
+    resizeDrag.current = {
+      axis,
+      x: e.clientX,
+      y: e.clientY,
+      w: block.width ?? MAIN_WIDTH,
+      h: block.height ?? mouthRef.current?.offsetHeight ?? MAIN_BODY_MIN,
+    };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
-  const onHandleMove = (e: React.PointerEvent) => {
-    const r = widthDrag.current;
+  const onResizeMove = (e: React.PointerEvent) => {
+    const r = resizeDrag.current;
     if (!r) return;
-    const dx = (e.clientX - r.startX) / scale;
-    const w = Math.round(
-      Math.min(MAIN_WIDTH_MAX, Math.max(MAIN_WIDTH_MIN, r.startW + dx)),
-    );
-    dispatch({ type: "setWidth", id: block.id, width: w });
+    if (r.axis !== "y") {
+      const w = clamp(r.w + (e.clientX - r.x) / scale, MAIN_WIDTH_MIN, MAIN_WIDTH_MAX);
+      dispatch({ type: "setWidth", id: block.id, width: w });
+    }
+    if (r.axis !== "x") {
+      const h = clamp(r.h + (e.clientY - r.y) / scale, MAIN_BODY_MIN, MAIN_BODY_MAX);
+      dispatch({ type: "setHeight", id: block.id, height: h });
+    }
   };
-  const onHandleUp = (e: React.PointerEvent) => {
-    widthDrag.current = null;
+  const onResizeUp = (e: React.PointerEvent) => {
+    resizeDrag.current = null;
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
       /* pointer may already be released */
     }
+  };
+  const resizeEvents = {
+    onPointerDown: onResizeDown,
+    onPointerMove: onResizeMove,
+    onPointerUp: onResizeUp,
+    onPointerCancel: onResizeUp,
   };
 
   // Head of a drag uses dnd-kit's transform; blocks snapped below it follow the
@@ -137,14 +166,12 @@ export function MainBlock({
       {/* Top socket — the peg of the block above drops into it. */}
       <div className="blk-socket" />
 
-      {/* Right-edge width handle (hover to reveal). */}
+      {/* Right-edge width handle (hover to reveal). Stops short of the corner. */}
       <div
-        onPointerDown={onHandleDown}
-        onPointerMove={onHandleMove}
-        onPointerUp={onHandleUp}
-        onPointerCancel={onHandleUp}
+        data-axis="x"
+        {...resizeEvents}
         title="Drag to resize width"
-        className="absolute bottom-0 right-0 top-[10px] z-10 flex w-2.5 cursor-ew-resize items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+        className="absolute bottom-3 right-0 top-[10px] z-10 flex w-2.5 cursor-ew-resize items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
       >
         <span className="h-10 w-1 rounded-full bg-black/25" />
       </div>
@@ -211,8 +238,15 @@ export function MainBlock({
             <div className="flex">
               {/* Left arm */}
               <div className="blk-arm w-2.5 shrink-0" />
-              {/* Mouth */}
-              <div ref={setDropRef} className="blk-body min-w-0 flex-1 space-y-2 px-2.5 py-2.5">
+              {/* Mouth — when the user sets a height, it scrolls instead of growing. */}
+              <div
+                ref={(el) => {
+                  setDropRef(el);
+                  mouthRef.current = el;
+                }}
+                style={block.height ? { height: block.height, overflowY: "auto" } : undefined}
+                className="blk-body min-w-0 flex-1 space-y-2 px-2.5 py-2.5"
+              >
                 <SortableContext
                   items={block.children.map((c) => c.id)}
                   strategy={verticalListSortingStrategy}
@@ -243,6 +277,28 @@ export function MainBlock({
           </>
         )}
       </div>
+
+      {/* Bottom-edge height handle + corner (both) handle — only when expanded. */}
+      {!collapsed && (
+        <>
+          <div
+            data-axis="y"
+            {...resizeEvents}
+            title="Drag to resize height"
+            className="absolute bottom-0 left-[10px] right-3 z-10 flex h-2.5 cursor-ns-resize items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+          >
+            <span className="h-1 w-10 rounded-full bg-black/25" />
+          </div>
+          <div
+            data-axis="xy"
+            {...resizeEvents}
+            title="Drag to resize"
+            className="absolute bottom-0 right-0 z-20 size-3 cursor-nwse-resize opacity-0 transition-opacity group-hover:opacity-100"
+          >
+            <span className="absolute bottom-1 right-1 size-1.5 rounded-sm border-b-2 border-r-2 border-black/30" />
+          </div>
+        </>
+      )}
 
       {/* Bottom peg — drops into the socket of the block below. */}
       <div className="blk-peg" />

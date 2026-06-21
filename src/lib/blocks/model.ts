@@ -120,6 +120,9 @@ export interface Block {
   y?: number;
   /** User-set width in px (top-level main blocks only). Defaults to MAIN_WIDTH. */
   width?: number;
+  /** User-set body (mouth) height in px (top-level main blocks only). When set,
+   *  the block's content area scrolls instead of growing to fit. */
+  height?: number;
   /** Leaf values. */
   text?: string;
   num?: number;
@@ -179,6 +182,10 @@ export interface BlockDef {
 export const MAIN_WIDTH = 340;
 export const MAIN_WIDTH_MIN = 260;
 export const MAIN_WIDTH_MAX = 720;
+
+/** Min / max body (mouth) height (px) when the user manually sets it. */
+export const MAIN_BODY_MIN = 80;
+export const MAIN_BODY_MAX = 800;
 
 // Function-based accent colours.
 const IO = "#5A7691";
