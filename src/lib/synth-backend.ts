@@ -19,7 +19,14 @@ const jobs: Map<string, Job> =
   ((globalThis as Record<string, unknown>).__synthJobs as Map<string, Job>) ??
   ((globalThis as Record<string, unknown>).__synthJobs = new Map());
 
-const remoteUrl = () => process.env.SYNTH_BACKEND_URL?.replace(/\/$/, "");
+// Normalize SYNTH_BACKEND_URL: strip a trailing slash and add an https:// scheme
+// if it's missing (e.g. a bare Railway host like "foo.up.railway.app"), so
+// fetch() gets a parseable absolute URL.
+const remoteUrl = () => {
+  const raw = process.env.SYNTH_BACKEND_URL?.trim().replace(/\/$/, "");
+  if (!raw) return undefined;
+  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+};
 const secretHeaders = (): Record<string, string> =>
   process.env.SYNTH_API_SECRET ? { "X-Synth-Secret": process.env.SYNTH_API_SECRET } : {};
 
