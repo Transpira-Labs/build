@@ -14,11 +14,14 @@ export function FieldEditor({ block }: { block: Block }) {
 
   if (def.valueType === "text") {
     return (
-      // flex-1 lets the box stretch to fill a block whose height was pulled
-      // taller (the parent leaf is a flex column); resize-y still gives the
-      // bottom-right grip, and overflow-auto lets long text scroll inside.
-      // onPointerDown stops the parent block's drag/pan handlers from hijacking
-      // a resize/scroll gesture.
+      // The box grows both ways and the two stay in sync:
+      //  • flex-auto (flex: 1 1 auto) fills extra space when the block is pulled
+      //    taller — and crucially its `auto` basis RESPECTS the height the
+      //    resize grip sets (flex-1's 0% basis would ignore it and snap back).
+      //  • resize-y gives the bottom-right grip; dragging it grows the box past
+      //    the block's min-height, so the block grows to match.
+      // overflow-auto scrolls long text inside; onPointerDown stops the parent
+      // block's drag/pan handlers from hijacking a resize/scroll gesture.
       <textarea
         value={block.text ?? ""}
         onChange={(e) =>
@@ -26,7 +29,7 @@ export function FieldEditor({ block }: { block: Block }) {
         }
         onPointerDown={(e) => e.stopPropagation()}
         rows={2}
-        className={`min-h-[2.75rem] flex-1 resize-y overflow-auto ${field}`}
+        className={`min-h-[2.75rem] flex-auto resize-y overflow-auto ${field}`}
       />
     );
   }

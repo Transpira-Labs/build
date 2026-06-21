@@ -108,6 +108,17 @@ class EvalReq(BaseModel):
     dryRun: bool = False
 
 
+class RunReq(BaseModel):
+    taskset: str
+    model: str | None = None
+    group: int | None = None
+    task_ids: list[str] | None = None
+
+
+class JobTracesReq(BaseModel):
+    job_id: str
+
+
 class TrainReq(BaseModel):
     blocks: list[Any] | None = None
     taskset: str | None = None
@@ -173,6 +184,26 @@ def train(req: TrainReq, x_synth_secret: str | None = Header(default=None)) -> d
         "fork": req.fork,
     }
     return {"job_id": _start("train_one.py", payload, args)}
+
+
+@app.post("/run")
+def run(req: RunReq, x_synth_secret: str | None = Header(default=None)) -> dict[str, str]:
+    _check(x_synth_secret)
+    if not req.taskset:
+        raise HTTPException(status_code=400, detail="taskset required")
+    payload = {
+        "taskset": req.taskset,
+        "model": req.model,
+        "group": req.group,
+        "task_ids": req.task_ids,
+    }
+    return {"job_id": _start("run_taskset.py", payload, [])}
+
+
+@app.post("/job-traces")
+def job_traces(req: JobTracesReq, x_synth_secret: str | None = Header(default=None)) -> dict[str, Any]:
+    _check(x_synth_secret)
+    return _run_script("job_traces.py", {"job_id": req.job_id}, [])
 
 
 @app.get("/jobs/{job_id}")

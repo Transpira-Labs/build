@@ -70,6 +70,11 @@ export interface TrainSettings {
 export interface DeployInfo {
   /** The deployed HUD env name (authoritative — returned by the backend). */
   envName: string;
+  /** The HUD taskset the deploy synced (runs/evals query this). Equals the env
+   *  name today, kept separate so runs don't assume they're identical. */
+  tasksetName?: string;
+  /** Whether the taskset sync to HUD succeeded — runs need it to find tasks. */
+  tasksetSynced?: boolean;
   /** The hud.ai environment page (parsed from the deploy log), if found. */
   envUrl?: string;
   /** Content-hash version the backend pinned. */

@@ -62,9 +62,16 @@ export function Dashboard() {
         <span className="text-sm font-semibold text-muted-foreground">
           Environments
         </span>
+        <Link
+          href="/benchception"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3.5 py-1.5 text-sm font-semibold text-foreground shadow-sm transition hover:border-accent/50 hover:text-accent focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          <span aria-hidden className="text-accent">✦</span>
+          Benchception
+        </Link>
         <button
           onClick={openNew}
-          className="ml-auto rounded-md bg-accent px-3.5 py-1.5 text-sm font-semibold text-accent-foreground shadow-sm transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-ring"
+          className="rounded-md bg-accent px-3.5 py-1.5 text-sm font-semibold text-accent-foreground shadow-sm transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-ring"
         >
           New environment
         </button>

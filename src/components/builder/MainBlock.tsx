@@ -111,7 +111,9 @@ export function MainBlock({
       x: e.clientX,
       y: e.clientY,
       w: block.width ?? MAIN_WIDTH,
-      h: block.height ?? mouthRef.current?.offsetHeight ?? MAIN_BODY_MIN,
+      // Start from the actual rendered height — a box resize may have grown the
+      // mouth past the stored min-height, and we don't want the handle to jump.
+      h: mouthRef.current?.offsetHeight ?? block.height ?? MAIN_BODY_MIN,
     };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -241,13 +243,15 @@ export function MainBlock({
             <div className="flex">
               {/* Left arm */}
               <div className="blk-arm w-2.5 shrink-0" />
-              {/* Mouth — when the user sets a height, it scrolls instead of growing. */}
+              {/* Mouth — the set height is a FLOOR (min-height), not a cap: text
+                  boxes flex-grow to fill it, and resizing a box past it grows
+                  the block to match. */}
               <div
                 ref={(el) => {
                   setDropRef(el);
                   mouthRef.current = el;
                 }}
-                style={block.height ? { height: block.height, overflowY: "auto" } : undefined}
+                style={block.height ? { minHeight: block.height } : undefined}
                 className="blk-body flex min-w-0 flex-1 flex-col gap-2 px-2.5 py-2.5"
               >
                 <SortableContext

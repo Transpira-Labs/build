@@ -47,8 +47,10 @@ export function BlockNode({
   } as React.CSSProperties;
 
   const isGroup = def.role === "group";
-  // A text leaf can stretch to fill a parent block whose height the user has
-  // pulled taller — the flex chain below carries that growth down to the textarea.
+  // A text leaf carries the flex chain down so the textarea can both fill a
+  // block pulled taller and, when its own resize grip is dragged, grow the
+  // block to match. flex-auto (not flex-1) is what keeps those two in sync —
+  // see FieldEditor.
   const isTextLeaf = !isGroup && def.valueType === "text";
   const accepts = activeChildKind ? canAdd(block, activeChildKind) : false;
   const stop = (e: React.PointerEvent) => e.stopPropagation();
@@ -57,12 +59,12 @@ export function BlockNode({
     <div
       ref={setNodeRef}
       style={style}
-      className={`blk relative ${isTextLeaf ? "flex min-h-0 flex-1 flex-col" : ""}`}
+      className={`blk relative ${isTextLeaf ? "flex min-h-0 flex-auto flex-col" : ""}`}
     >
       <div
         className={`blk-shadow-sm overflow-hidden rounded-lg border border-black/10 ${
           accepts ? "ring-2 ring-accent ring-offset-1" : ""
-        } ${isTextLeaf ? "flex min-h-0 flex-1 flex-col" : ""}`}
+        } ${isTextLeaf ? "flex min-h-0 flex-auto flex-col" : ""}`}
       >
         {/* Header — drag handle */}
         <div
@@ -124,7 +126,7 @@ export function BlockNode({
           ) : (
             <div
               className={`blk-body px-2 py-2 ${
-                isTextLeaf ? "flex min-h-0 flex-1 flex-col" : ""
+                isTextLeaf ? "flex min-h-0 flex-auto flex-col" : ""
               }`}
             >
               <FieldEditor block={block} />

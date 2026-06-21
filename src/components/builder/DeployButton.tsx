@@ -55,6 +55,8 @@ type DeployResponse = {
   diagnostics?: Diag[];
   logTail?: string;
   error?: string;
+  /** Whether `hud sync tasks` registered the env's taskset on HUD. */
+  taskset_synced?: boolean;
 };
 
 type Phase = "idle" | "blocked" | "deploying" | "done" | "error";
@@ -94,6 +96,9 @@ export function DeployButton() {
           type: "setDeploy",
           deploy: {
             envName: data.env_name || "environment",
+            // The deploy syncs a taskset named after the env; runs query it.
+            tasksetName: data.env_name || "environment",
+            tasksetSynced: data.taskset_synced !== false,
             envUrl,
             version: data.version,
             status: "deployed",
@@ -199,6 +204,22 @@ export function DeployButton() {
                       </p>
                     </div>
                   </div>
+
+                  {result.taskset_synced === false && (
+                    <div className="flex gap-2.5 rounded-lg border border-amber-300 bg-amber-50 p-2.5">
+                      <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-500" />
+                      <div className="text-xs">
+                        <p className="font-semibold text-amber-800">
+                          Taskset didn&apos;t sync to HUD
+                        </p>
+                        <p className="mt-0.5 leading-relaxed text-amber-700">
+                          The env deployed, but its tasks weren&apos;t registered — runs won&apos;t
+                          find anything to evaluate. Hit{" "}
+                          <span className="font-semibold">Build it</span> again to retry the sync.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {result.stubbed && result.stubbed.length > 0 && (
                     <div className="flex gap-2.5 rounded-lg border border-amber-300 bg-amber-50 p-2.5">

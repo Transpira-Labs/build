@@ -11,8 +11,15 @@ import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
 
-export type JobKind = "deploy" | "eval" | "train";
-type Job = { status: "running" | "done" | "error"; result: unknown; log: string };
+export type JobKind = "deploy" | "eval" | "train" | "run";
+// `hudJobId` is set for "run" jobs as soon as the bridge prints its early
+// @@HUDJOB marker, so the UI can poll live HUD traces while the run is going.
+type Job = {
+  status: "running" | "done" | "error";
+  result: unknown;
+  log: string;
+  hudJobId?: string;
+};
 type StartResult = { jobId?: string; error?: string; status?: number };
 
 const jobs: Map<string, Job> =
@@ -51,7 +58,14 @@ type TrainBody = {
   fork?: boolean;
   dryRun?: boolean;
 };
-type AnyBody = DeployBody | EvalBody | TrainBody;
+type RunBody = {
+  taskset?: string;
+  model?: string;
+  group?: number;
+  task_ids?: string[];
+  dryRun?: boolean;
+};
+type AnyBody = DeployBody | EvalBody | TrainBody | RunBody;
 
 export async function startJob(kind: JobKind, body: AnyBody): Promise<StartResult> {
   const url = remoteUrl();
@@ -78,21 +92,73 @@ export async function startJob(kind: JobKind, body: AnyBody): Promise<StartResul
 
 export async function getJob(
   jobId: string,
-): Promise<{ status: string; result: unknown } | null> {
+): Promise<{ status: string; result: unknown; hudJobId?: string } | null> {
   if (jobId.startsWith("r:")) {
     const url = remoteUrl();
     if (!url) return null;
     try {
       const res = await fetch(`${url}/jobs/${jobId.slice(2)}`, { headers: secretHeaders() });
       if (!res.ok) return null;
-      return (await res.json()) as { status: string; result: unknown };
+      return (await res.json()) as { status: string; result: unknown; hudJobId?: string };
     } catch {
       return null;
     }
   }
   const j = jobs.get(jobId);
   if (!j) return null;
-  return { status: j.status, result: j.result };
+  return { status: j.status, result: j.result, hudJobId: j.hudJobId };
+}
+
+// One-shot Python bridge (no job tracking) for fast reads like job_traces.py.
+// Spawns the script, feeds `body` as JSON on stdin, resolves the parsed last
+// stdout line. Remote mode proxies to the synth service's matching endpoint.
+export async function runPythonOnce(
+  script: "job_traces",
+  body: unknown,
+): Promise<Record<string, unknown>> {
+  const url = remoteUrl();
+  if (url) {
+    try {
+      const res = await fetch(`${url}/${script.replace(/_/g, "-")}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...secretHeaders() },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return { ok: false, error: `service ${res.status}` };
+      return (await res.json()) as Record<string, unknown>;
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "service unreachable" };
+    }
+  }
+
+  const repoRoot = process.cwd();
+  const backendDir = path.join(repoRoot, "backend");
+  const py = path.resolve(repoRoot, process.env.SYNTH_PYTHON || "./backend/.venv/bin/python");
+  if (!fs.existsSync(py) || !fs.existsSync(path.join(backendDir, `${script}.py`))) {
+    return { ok: false, error: "backend not available" };
+  }
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  delete env.HUD_API_URL; // talk to the same beta backend the env deployed to
+  if (!process.env.HUD_API_KEY) delete env.HUD_API_KEY;
+
+  return new Promise((resolve) => {
+    const child = spawn(py, [`${script}.py`], { cwd: backendDir, env });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (d) => (out += d.toString()));
+    child.stderr.on("data", (d) => (err += d.toString()));
+    child.stdin.write(JSON.stringify(body));
+    child.stdin.end();
+    child.on("close", () => {
+      const line = out.trim().split("\n").filter(Boolean).pop() ?? "";
+      try {
+        resolve(JSON.parse(line));
+      } catch {
+        resolve({ ok: false, error: "backend returned no JSON", logTail: err.slice(-2000) });
+      }
+    });
+    child.on("error", (e) => resolve({ ok: false, error: `spawn failed: ${e.message}` }));
+  });
 }
 
 function startLocal(kind: JobKind, body: AnyBody): StartResult {
@@ -100,7 +166,13 @@ function startLocal(kind: JobKind, body: AnyBody): StartResult {
   const backendDir = path.join(repoRoot, "backend");
   const py = path.resolve(repoRoot, process.env.SYNTH_PYTHON || "./backend/.venv/bin/python");
   const script =
-    kind === "deploy" ? "deploy_one.py" : kind === "eval" ? "eval_one.py" : "train_one.py";
+    kind === "deploy"
+      ? "deploy_one.py"
+      : kind === "eval"
+        ? "eval_one.py"
+        : kind === "run"
+          ? "run_taskset.py"
+          : "train_one.py";
 
   if (!fs.existsSync(py) || !fs.existsSync(path.join(backendDir, script))) {
     return {
@@ -124,6 +196,14 @@ function startLocal(kind: JobKind, body: AnyBody): StartResult {
       taskset: b.taskset,
       models: b.models,
       group: b.group,
+    });
+  } else if (kind === "run") {
+    const b = body as RunBody;
+    stdin = JSON.stringify({
+      taskset: b.taskset,
+      model: b.model,
+      group: b.group,
+      task_ids: b.task_ids,
     });
   } else {
     const b = body as TrainBody;
@@ -157,7 +237,14 @@ function startLocal(kind: JobKind, body: AnyBody): StartResult {
   const child = spawn(py, [script, ...args], { cwd: backendDir, env });
   let out = "";
   let err = "";
-  child.stdout.on("data", (d) => (out += d.toString()));
+  child.stdout.on("data", (d) => {
+    out += d.toString();
+    // run_taskset.py prints "@@HUDJOB <id>" once, before the slow rollouts, so
+    // the UI can poll live HUD trace status while the run is still going.
+    const m = out.match(/@@HUDJOB\s+(\S+)/);
+    const j = jobs.get(jobId);
+    if (m && j && !j.hudJobId) j.hudJobId = m[1];
+  });
   child.stderr.on("data", (d) => {
     err += d.toString();
     const j = jobs.get(jobId);
