@@ -18,16 +18,23 @@ from pathlib import Path
 # These are the originally-INTENDED open models — they work on the v6 beta gateway
 # with their fully-qualified ids (the bare names / the old non-beta endpoint do
 # NOT work, which is what caused the earlier "Tinker SDK" confusion).
+# bench-ception v3: two builders each build a FULL supply-chain env + training set
+# from the same SC-bench prompt; a trainee is RL-trained on each; trained models
+# are judged on the GOLDEN held-out SC-bench. Only these two are builders.
 BUILDERS: list[str] = [
-    "openai/gpt-oss-120b",                 # GPT slot
-    "Qwen/Qwen3-235B-A22B-Instruct-2507",  # Qwen slot
-    "claude-sonnet-4-6",                   # Sonnet slot
+    "claude-opus-4-8",
+    "gpt-5.5",
 ]
 
-GOLDEN_AUTHOR = "claude-opus-4-8"  # writes the golden benchmark env
+# The trainee: forked per builder env and RL-trained, then evaluated on the golden.
+TRAINEE = os.environ.get("BENCHCEPTION_TRAINEE", "Qwen/Qwen3-8B")
 
-# Probe / trainee run inside the grader. Qwen3-8B is the intended trainee and is
-# is_trainable=true (so it's also the Phase-2 RL target).
+# The GOLDEN held-out benchmark — the real SC-bench (ACL 2026), ported to HUD.
+GOLDEN_ENV = str(Path(__file__).parent.parent / "golden" / "sc_bench" / "sc_bench_env.py")
+GOLDEN_TASKSET = "sc-bench"  # name on the HUD platform (hud sync tasks)
+
+# Kept for the older cross-play/probe flow (capture.py / run_benchception.py).
+GOLDEN_AUTHOR = "claude-opus-4-8"
 PROBE_MODEL = os.environ.get("BENCHCEPTION_PROBE", "Qwen/Qwen3-8B")
 
 
