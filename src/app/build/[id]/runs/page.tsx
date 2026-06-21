@@ -8,8 +8,19 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, ExternalLink, Loader2, Play, Rocket } from "lucide-react";
-import { useEnvironment } from "@/lib/library";
+import {
+  ArrowLeft,
+  Brain,
+  CircleCheck,
+  ExternalLink,
+  Loader2,
+  Play,
+  Rocket,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
+import { saveEnvironment, useEnvironment } from "@/lib/library";
+import { BLOCKS, type ProjectDoc, type DeployInfo } from "@/lib/blocks/model";
 import { toIR } from "@/lib/ir/schema";
 import { toV1Blocks } from "@/lib/ir/v1";
 import { runJob } from "@/lib/pollJob";
@@ -42,7 +53,33 @@ type Leaderboard = {
   logTail?: string;
 };
 
+// Shape of train_one.py's TrainingResult.to_dict() (+ run params it echoes back).
+type TrainResult = {
+  ok: boolean;
+  model_slug: string;
+  head_id?: string | null;
+  baseline_ceiling?: number | null;
+  curve: {
+    start: number;
+    end: number;
+    best: number;
+    improvement: number;
+    points: { step: number; mean_reward: number }[];
+  };
+  diagnostics: { level: string; code: string; message: string }[];
+  base?: string;
+  steps?: number;
+  group?: number;
+  mode?: string;
+  fork?: string;
+  error?: string;
+  logTail?: string;
+};
+
 const pct = (v: number) => `${Math.round(v * 100)}%`;
+
+const slugify = (s: string) =>
+  (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "env";
 
 /** Warm green→amber→red wash by reward (0..1). */
 function rewardStyle(v: number): React.CSSProperties {
@@ -222,6 +259,14 @@ export default function RunsPage() {
             )}
 
             {result?.ok && <Results lb={result} />}
+
+            {doc && (
+              <TrainPanel
+                doc={doc}
+                deploy={deploy}
+                baseline={result?.ok ? result : null}
+              />
+            )}
           </>
         )}
       </div>
@@ -372,5 +417,318 @@ function Badge({ ok, label }: { ok: boolean; label: string }) {
     >
       {label}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Train — one-click managed RL on the tasks you defined, routed through HUD.
+// Forks a trainable open-weight base into a per-env slug, then runs GRPO
+// rollouts on those tasks and reads the reward curve. If a baseline eval is on
+// the page, it's passed as the trainability gate (and the climb is measured
+// against its ceiling).
+// ---------------------------------------------------------------------------
+
+const BASES = BLOCKS.model.options ?? [
+  { value: "qwen3-8b", label: "Small & fast" },
+];
+
+function TrainPanel({
+  doc,
+  deploy,
+  baseline,
+}: {
+  doc: ProjectDoc;
+  deploy: DeployInfo;
+  baseline: Leaderboard | null;
+}) {
+  const [base, setBase] = useState(doc.train.model || BASES[0].value);
+  const [steps, setSteps] = useState(10);
+  const [group, setGroup] = useState(8);
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<TrainResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const slug = `${slugify(deploy.envName)}-rl`;
+  const last = doc.lastTrain;
+
+  async function train() {
+    setRunning(true);
+    setError(null);
+    setResult(null);
+    try {
+      const data = await runJob<TrainResult>(
+        "/api/train",
+        {
+          blocks: toV1Blocks(toIR(doc)),
+          name: deploy.envName,
+          base,
+          steps,
+          group,
+          baseline: baseline ?? undefined,
+        },
+        // GRPO loops are long; give them room and poll a little less eagerly.
+        { intervalMs: 5000, timeoutMs: 60 * 60 * 1000 },
+      );
+      setResult(data);
+      const c = data.curve;
+      // Persist a slim summary so the trained slug + curve survive a reload.
+      saveEnvironment({
+        ...doc,
+        lastTrain: {
+          modelSlug: data.model_slug || slug,
+          base: data.base || base,
+          steps: data.steps ?? steps,
+          group: data.group ?? group,
+          status: data.ok ? "trained" : "failed",
+          startReward: c?.start,
+          endReward: c?.end,
+          bestReward: c?.best,
+          improvement: c?.improvement,
+          baselineCeiling: data.baseline_ceiling ?? undefined,
+          curve: c?.points?.map((p) => ({ step: p.step, mean_reward: p.mean_reward })),
+          diagnostics: data.diagnostics,
+          startedAt: new Date().toISOString(),
+          message: data.error,
+        },
+      });
+      if (!data.ok) setError(data.error || "Training did not complete — see the notes below.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="mt-5 rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center gap-2">
+        <Brain className="size-4 text-accent" />
+        <p className="text-sm font-semibold">Train a model on these tasks</p>
+      </div>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        Forks{" "}
+        <span className="font-mono text-foreground/80">{base}</span> into a trainable model{" "}
+        <span className="font-mono text-foreground/80">{slug}</span> and runs RL on the tasks you
+        defined — rollouts and inference both route through HUD.
+      </p>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="text-muted-foreground">Base model</span>
+          <select
+            value={base}
+            onChange={(e) => setBase(e.target.value)}
+            className="rounded-md border border-input bg-background px-2 py-1.5 outline-none focus:border-accent"
+          >
+            {BASES.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.value} — {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="text-muted-foreground">Steps</span>
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={steps}
+            onChange={(e) => setSteps(Math.min(100, Math.max(1, Number(e.target.value))))}
+            className="rounded-md border border-input bg-background px-2 py-1.5 outline-none focus:border-accent"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="text-muted-foreground">Group (rollouts/task)</span>
+          <input
+            type="number"
+            min={2}
+            max={32}
+            value={group}
+            onChange={(e) => setGroup(Math.min(32, Math.max(2, Number(e.target.value))))}
+            className="rounded-md border border-input bg-background px-2 py-1.5 outline-none focus:border-accent"
+          />
+        </label>
+      </div>
+
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        {baseline ? (
+          <>
+            <CircleCheck className="mr-1 inline size-3 text-green-600" />
+            Gated by your baseline — GRPO needs within-group reward spread to learn.
+          </>
+        ) : (
+          <>Tip: run a baseline above first — it gates training on whether the tasks have signal.</>
+        )}
+      </p>
+
+      <button
+        onClick={train}
+        disabled={running}
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
+      >
+        {running ? (
+          <>
+            <Loader2 className="size-4 animate-spin" /> Training on HUD…
+          </>
+        ) : (
+          <>
+            <Sparkles className="size-4" /> Start RL run
+          </>
+        )}
+      </button>
+      {running && (
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          {steps} steps × {group} rollouts/task on HUD — this can take a while. Keep this tab open.
+        </p>
+      )}
+
+      {error && (
+        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+          <p className="text-sm font-medium text-red-700">{error}</p>
+          {result?.logTail && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-red-600">Log</summary>
+              <pre className="mt-1 max-h-48 overflow-auto font-mono text-[10px] text-red-700/80">
+                {result.logTail}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
+
+      {result?.ok && <TrainResultView r={result} />}
+
+      {/* Persisted summary from a previous run (shown until a fresh run replaces it). */}
+      {!result && last && (
+        <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3 text-xs">
+          <div className="flex items-center gap-2">
+            {last.status === "trained" ? (
+              <CircleCheck className="size-3.5 text-green-600" />
+            ) : (
+              <TrendingUp className="size-3.5 text-amber-500" />
+            )}
+            <span className="font-medium">Last run</span>
+            <span className="font-mono text-foreground/70">{last.modelSlug}</span>
+            <span className="ml-auto text-muted-foreground">
+              {typeof last.startReward === "number" && typeof last.endReward === "number"
+                ? `${pct(last.startReward)} → ${pct(last.endReward)}`
+                : last.status}
+            </span>
+          </div>
+          {last.curve && last.curve.length > 1 && (
+            <div className="mt-2">
+              <RewardCurve points={last.curve} ceiling={last.baselineCeiling} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrainResultView({ r }: { r: TrainResult }) {
+  const c = r.curve;
+  const up = (c?.improvement ?? 0) >= 0;
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3">
+        <TrendingUp className={`size-4 ${up ? "text-green-600" : "rotate-180 text-amber-500"}`} />
+        <div className="text-sm">
+          <span className="font-semibold">
+            {pct(c.start)} → {pct(c.end)}
+          </span>{" "}
+          <span className="text-muted-foreground">
+            ({up ? "+" : ""}
+            {pct(c.improvement)} over {c.points.length} checkpoint
+            {c.points.length === 1 ? "" : "s"}, best {pct(c.best)})
+          </span>
+        </div>
+        <span className="ml-auto font-mono text-xs text-foreground/70">{r.model_slug}</span>
+      </div>
+
+      {c.points.length > 1 && (
+        <div className="rounded-lg border border-border bg-card p-3">
+          <RewardCurve
+            points={c.points}
+            ceiling={r.baseline_ceiling ?? undefined}
+          />
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        Sample it through HUD as{" "}
+        <span className="font-mono text-foreground/80">{r.model_slug}</span> — the trained head is
+        live behind that slug.
+      </p>
+
+      {r.diagnostics && r.diagnostics.length > 0 && (
+        <ul className="space-y-1.5 rounded-lg border border-border bg-card p-3">
+          {r.diagnostics.map((d, i) => (
+            <li key={i} className="flex gap-2 text-xs">
+              <span
+                className={
+                  d.level === "error"
+                    ? "text-red-500"
+                    : d.level === "warn"
+                      ? "text-amber-500"
+                      : "text-muted-foreground"
+                }
+              >
+                ●
+              </span>
+              <span className="text-muted-foreground">{d.message}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** A tiny reward-vs-step sparkline. Rewards are 0..1; the optional baseline
+ *  ceiling is drawn as a dashed reference line. */
+function RewardCurve({
+  points,
+  ceiling,
+}: {
+  points: { step: number; mean_reward: number }[];
+  ceiling?: number;
+}) {
+  const W = 320;
+  const H = 64;
+  const pad = 4;
+  const n = points.length;
+  const x = (i: number) => pad + (i / Math.max(1, n - 1)) * (W - 2 * pad);
+  const y = (v: number) => H - pad - Math.max(0, Math.min(1, v)) * (H - 2 * pad);
+  const line = points.map((p, i) => `${x(i)},${y(p.mean_reward)}`).join(" ");
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-16 w-full" preserveAspectRatio="none">
+      {typeof ceiling === "number" && (
+        <line
+          x1={pad}
+          x2={W - pad}
+          y1={y(ceiling)}
+          y2={y(ceiling)}
+          stroke="currentColor"
+          strokeWidth={1}
+          strokeDasharray="4 3"
+          className="text-muted-foreground/50"
+        />
+      )}
+      <polyline
+        points={line}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        className="text-accent"
+      />
+      {points.map((p, i) => (
+        <circle key={i} cx={x(i)} cy={y(p.mean_reward)} r={2} className="fill-accent" />
+      ))}
+    </svg>
   );
 }

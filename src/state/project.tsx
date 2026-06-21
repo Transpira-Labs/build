@@ -30,6 +30,7 @@ import {
   type MainKind,
   type ProjectDoc,
   type ReferenceValue,
+  type TrainRunInfo,
   type TrainSettings,
 } from "@/lib/blocks/model";
 
@@ -56,6 +57,7 @@ type Action =
   | { type: "patchReference"; id: string; patch: Partial<ReferenceValue> }
   | { type: "setTrain"; patch: Partial<TrainSettings> }
   | { type: "setDeploy"; deploy: DeployInfo }
+  | { type: "setTrainRun"; run: TrainRunInfo }
   | { type: "reorder"; parentId: string; fromId: string; toId: string };
 
 function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
@@ -188,6 +190,9 @@ function reducer(doc: ProjectDoc, action: Action): ProjectDoc {
 
     case "setDeploy":
       return { ...doc, deploy: action.deploy };
+
+    case "setTrainRun":
+      return { ...doc, lastTrain: action.run };
 
     case "reorder": {
       const parent = findBlock(doc.blocks, action.parentId);

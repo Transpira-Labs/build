@@ -61,30 +61,7 @@ export function Dashboard() {
         <div className="mx-auto max-w-6xl px-6 py-8">
           <WelcomeCard />
 
-          <section className="mt-10">
-            <div className="mb-1 flex items-baseline justify-between">
-              <h2 className="font-display text-xl font-semibold">
-                Start from a template
-              </h2>
-              <span className="text-sm text-muted-foreground">
-                Complete, runnable environments
-              </span>
-            </div>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Open a copy to explore how it&apos;s built, then make it your own.
-            </p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {TEMPLATES.map((t) => (
-                <TemplateCard
-                  key={t.key}
-                  template={t}
-                  onUse={() => handleUseTemplate(t)}
-                />
-              ))}
-            </div>
-          </section>
-
-          <div className="mb-4 mt-12 flex items-baseline justify-between">
+          <div className="mb-4 mt-10 flex items-baseline justify-between">
             <h2 className="font-display text-xl font-semibold">
               Your environments
             </h2>
@@ -109,6 +86,29 @@ export function Dashboard() {
               ))}
             </div>
           )}
+
+          <section className="mt-12">
+            <div className="mb-1 flex items-baseline justify-between">
+              <h2 className="font-display text-xl font-semibold">
+                Start from a template
+              </h2>
+              <span className="text-sm text-muted-foreground">
+                Complete, runnable environments
+              </span>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Open a copy to explore how it&apos;s built, then make it your own.
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {TEMPLATES.map((t) => (
+                <TemplateCard
+                  key={t.key}
+                  template={t}
+                  onUse={() => handleUseTemplate(t)}
+                />
+              ))}
+            </div>
+          </section>
         </div>
       </main>
     </div>

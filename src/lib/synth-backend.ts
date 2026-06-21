@@ -11,7 +11,7 @@ import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
 
-export type JobKind = "deploy" | "eval";
+export type JobKind = "deploy" | "eval" | "train";
 type Job = { status: "running" | "done" | "error"; result: unknown; log: string };
 type StartResult = { jobId?: string; error?: string; status?: number };
 
@@ -31,8 +31,22 @@ type EvalBody = {
   group?: number;
   dryRun?: boolean;
 };
+type TrainBody = {
+  blocks?: unknown[];
+  taskset?: string;
+  name?: string;
+  base?: string;
+  model?: string;
+  steps?: number;
+  group?: number;
+  mode?: string;
+  baseline?: unknown;
+  fork?: boolean;
+  dryRun?: boolean;
+};
+type AnyBody = DeployBody | EvalBody | TrainBody;
 
-export async function startJob(kind: JobKind, body: DeployBody | EvalBody): Promise<StartResult> {
+export async function startJob(kind: JobKind, body: AnyBody): Promise<StartResult> {
   const url = remoteUrl();
   if (url) {
     try {
@@ -74,11 +88,12 @@ export async function getJob(
   return { status: j.status, result: j.result };
 }
 
-function startLocal(kind: JobKind, body: DeployBody | EvalBody): StartResult {
+function startLocal(kind: JobKind, body: AnyBody): StartResult {
   const repoRoot = process.cwd();
   const backendDir = path.join(repoRoot, "backend");
   const py = path.resolve(repoRoot, process.env.SYNTH_PYTHON || "./backend/.venv/bin/python");
-  const script = kind === "deploy" ? "deploy_one.py" : "eval_one.py";
+  const script =
+    kind === "deploy" ? "deploy_one.py" : kind === "eval" ? "eval_one.py" : "train_one.py";
 
   if (!fs.existsSync(py) || !fs.existsSync(path.join(backendDir, script))) {
     return {
@@ -91,16 +106,33 @@ function startLocal(kind: JobKind, body: DeployBody | EvalBody): StartResult {
     return { error: "No HUD_API_KEY available to the backend.", status: 503 };
   }
 
-  // deploy_one.py reads the raw blocks array; eval_one.py reads an object.
-  const stdin =
-    kind === "deploy"
-      ? JSON.stringify((body as DeployBody).blocks)
-      : JSON.stringify({
-          blocks: (body as EvalBody).blocks,
-          taskset: (body as EvalBody).taskset,
-          models: (body as EvalBody).models,
-          group: (body as EvalBody).group,
-        });
+  // deploy_one.py reads the raw blocks array; eval_one.py / train_one.py read an object.
+  let stdin: string;
+  if (kind === "deploy") {
+    stdin = JSON.stringify((body as DeployBody).blocks);
+  } else if (kind === "eval") {
+    const b = body as EvalBody;
+    stdin = JSON.stringify({
+      blocks: b.blocks,
+      taskset: b.taskset,
+      models: b.models,
+      group: b.group,
+    });
+  } else {
+    const b = body as TrainBody;
+    stdin = JSON.stringify({
+      blocks: b.blocks,
+      taskset: b.taskset,
+      name: b.name,
+      base: b.base,
+      model: b.model,
+      steps: b.steps,
+      group: b.group,
+      mode: b.mode,
+      baseline: b.baseline,
+      fork: b.fork,
+    });
+  }
   const args: string[] = [];
   if (body.dryRun) args.push("--dry-run");
   if (kind === "deploy" && (body as DeployBody).noLlm) args.push("--no-llm");

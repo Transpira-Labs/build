@@ -80,6 +80,33 @@ export interface DeployInfo {
   message?: string;
 }
 
+/** Result of the last managed-RL run launched from the run page. Persisted with
+ *  the project so the trained model slug and its reward curve survive reloads. */
+export interface TrainRunInfo {
+  /** The trainable HUD model slug that was sampled AND trained (e.g. "my-env-rl"). */
+  modelSlug: string;
+  /** The base model it was forked from (qwen3-8b, …). */
+  base: string;
+  steps: number;
+  /** Rollouts per task — the GRPO group. */
+  group: number;
+  status: "trained" | "failed";
+  /** Mean reward at the first / last / best checkpoint (0..1). */
+  startReward?: number;
+  endReward?: number;
+  bestReward?: number;
+  /** end − start. */
+  improvement?: number;
+  /** The step-6 baseline ceiling this run was gated against, if any. */
+  baselineCeiling?: number;
+  /** Per-checkpoint reward, for the sparkline. */
+  curve?: { step: number; mean_reward: number }[];
+  diagnostics?: { level: string; code: string; message: string }[];
+  /** ISO timestamp of the run. */
+  startedAt: string;
+  message?: string;
+}
+
 export interface Block {
   id: string;
   kind: BlockKind;
@@ -109,6 +136,8 @@ export interface ProjectDoc {
   connections?: Record<string, string>;
   /** Last successful compile+deploy to HUD; drives the run page. */
   deploy?: DeployInfo;
+  /** Last managed-RL run launched from the run page. */
+  lastTrain?: TrainRunInfo;
 }
 
 // ---------------------------------------------------------------------------

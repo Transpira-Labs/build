@@ -108,6 +108,20 @@ class EvalReq(BaseModel):
     dryRun: bool = False
 
 
+class TrainReq(BaseModel):
+    blocks: list[Any] | None = None
+    taskset: str | None = None
+    name: str | None = None
+    base: str | None = None
+    model: str | None = None
+    steps: int | None = None
+    group: int | None = None
+    mode: str | None = None
+    baseline: dict[str, Any] | None = None
+    fork: bool | None = None
+    dryRun: bool = False
+
+
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {"ok": True, "has_key": bool(os.environ.get("HUD_API_KEY"))}
@@ -138,6 +152,27 @@ def eval_(req: EvalReq, x_synth_secret: str | None = Header(default=None)) -> di
         "group": req.group,
     }
     return {"job_id": _start("eval_one.py", payload, args)}
+
+
+@app.post("/train")
+def train(req: TrainReq, x_synth_secret: str | None = Header(default=None)) -> dict[str, str]:
+    _check(x_synth_secret)
+    if not req.blocks and not req.taskset:
+        raise HTTPException(status_code=400, detail="blocks[] or taskset required")
+    args = ["--dry-run"] if req.dryRun else []
+    payload = {
+        "blocks": req.blocks,
+        "taskset": req.taskset,
+        "name": req.name,
+        "base": req.base,
+        "model": req.model,
+        "steps": req.steps,
+        "group": req.group,
+        "mode": req.mode,
+        "baseline": req.baseline,
+        "fork": req.fork,
+    }
+    return {"job_id": _start("train_one.py", payload, args)}
 
 
 @app.get("/jobs/{job_id}")
