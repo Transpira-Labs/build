@@ -16,14 +16,12 @@ import argparse
 import json
 from pathlib import Path
 
-from synth.compile.assemble_env import compile_env
-from synth.tasks.synthesizer import synthesize_taskset
+from synth.compile.registry import build_from_project
 from synth.tools.extract import extract_project
-from synth.tools.synthesizer import synthesize_toolset
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="synth-env", description="Compile a HUD v6 env.py from a project JSON.")
+    ap = argparse.ArgumentParser(prog="synth-env", description="Compile a HUD v6 project from a project JSON.")
     ap.add_argument("project", help="path to the UI's project JSON (any version)")
     ap.add_argument("-o", "--out", default="out", help="output directory (default: out/)")
     ap.add_argument("--no-llm", action="store_true", help="skip LLM extraction/codegen/planning (offline)")
@@ -34,23 +32,20 @@ def main(argv: list[str] | None = None) -> int:
     raw = json.loads(Path(args.project).read_text())
 
     spec = extract_project(raw, use_llm=use_llm)
-    toolset = synthesize_toolset(spec, use_llm=use_llm)
-    taskset = synthesize_taskset(
-        raw, env_name=spec.env.name, tool_names={t.name for t in spec.tools}, use_llm=use_llm,
-    )
-    result = compile_env(toolset, taskset, description=spec.env.description, version=args.version)
+    cb = build_from_project(raw, spec, use_llm=use_llm, version=args.version)
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    env_path = out / "env.py"
-    env_path.write_text(result.source)
+    for relpath, content in cb.files.items():
+        (out / relpath).write_text(content)
 
-    print(f"[compile] {result.env_name} v{result.version}: "
-          f"{len(toolset.tools)} tools, {taskset.task_count} tasks → {env_path}")
-    print(f"[compile] {'compiled ✓' if result.ok else 'FAILED ✗'}")
-    for d in result.diagnostics:
+    files = ", ".join(sorted(cb.files))
+    print(f"[compile] {cb.ir.env_name} v{cb.ir.version}: "
+          f"{len(cb.ir.defines)} defs, {len(cb.ir.taskset_calls)} tasks → {out}/ ({files})")
+    print(f"[compile] compiled {'✓' if cb.ok else '✗'}  deployable {'✓' if cb.deployable else '✗'}")
+    for d in cb.diagnostics:
         print(f"  [{d.level}] {d.code}: {d.message}")
-    return 0 if result.ok else 1
+    return 0 if cb.deployable else 1
 
 
 if __name__ == "__main__":
