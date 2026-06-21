@@ -57,6 +57,8 @@ type DeployResponse = {
   error?: string;
   /** Whether `hud sync tasks` registered the env's taskset on HUD. */
   taskset_synced?: boolean;
+  /** The real reason the taskset sync failed (tail of the sync log). */
+  taskset_error?: string;
 };
 
 type Phase = "idle" | "blocked" | "deploying" | "done" | "error";
@@ -217,6 +219,14 @@ export function DeployButton() {
                           find anything to evaluate. Hit{" "}
                           <span className="font-semibold">Build it</span> again to retry the sync.
                         </p>
+                        {result.taskset_error && (
+                          <details className="mt-1.5">
+                            <summary className="cursor-pointer text-amber-800">Why it failed</summary>
+                            <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-amber-900/80">
+                              {result.taskset_error}
+                            </pre>
+                          </details>
+                        )}
                       </div>
                     </div>
                   )}

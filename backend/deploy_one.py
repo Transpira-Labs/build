@@ -47,6 +47,36 @@ def _tool_report(env_py: Path, tool_names: list[str]) -> list[dict]:
     return report
 
 
+def _taskset_rows(env_name: str, taskset_calls: list[str]) -> list[dict]:
+    """Compiled task call exprs → portable taskset rows, without importing env.py.
+
+    Each call looks like ``template_id(arg=literal, ...)``; we read the template
+    id and its literal kwargs straight from the AST. Returns
+    ``[{"env", "id", "args"}, ...]`` — the shape `Taskset.from_file(.jsonl)` loads
+    and `hud sync tasks` uploads."""
+    rows: list[dict] = []
+    for call in taskset_calls:
+        try:
+            expr = ast.parse(call, mode="eval").body
+        except SyntaxError:
+            continue
+        if not isinstance(expr, ast.Call) or not isinstance(expr.func, ast.Name):
+            continue
+        args: dict = {}
+        ok = True
+        for kw in expr.keywords:
+            if not kw.arg:
+                continue
+            try:
+                args[kw.arg] = ast.literal_eval(kw.value)
+            except (ValueError, SyntaxError):
+                ok = False
+                break
+        if ok:
+            rows.append({"env": env_name, "id": expr.func.id, "args": args})
+    return rows
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="deploy_one")
     ap.add_argument("--no-llm", action="store_true", help="skip the LLM extractor/codegen (offline)")
@@ -127,25 +157,41 @@ def main(argv: list[str] | None = None) -> int:
     result["deployed"] = True
     result["message"] = "deployed"
 
-    # `hud deploy` registers the env image but NOT its taskset. Sync the baked-in Taskset
-    # so the run page's `Taskset.from_api(env_name)` can find it on HUD. CAPTURE the output
-    # so a failure is LOUD: this step used to fail silently (a too-old `hud` that can't import
-    # the env.py, a missing env registry, or 0 tasks collected) leaving "taskset not found"
-    # with no error anywhere. Surface the real reason in `taskset_error`.
-    # `--yes` is deprecated; `hud sync tasks` no longer prompts. Run it non-interactively
-    # (DEVNULL stdin) so a stray confirmation can never block the deploy.
-    sync_cmd = [hud, "sync", "tasks", cb.ir.env_name, str(out / "env.py")]
+    # `hud deploy` registers the env image but NOT its taskset, so sync it.
+    #
+    # We sync from a portable JSONL we build straight from the compiled IR — one
+    # row per task: {env, id (the @env.template id), args}. Syncing from env.py
+    # would make `hud` IMPORT it locally (and every tool dependency); for envs
+    # whose synthesized tools pull in packages this backend's venv doesn't have,
+    # that import fails and 0 tasks are collected — the "taskset didn't sync"
+    # case. The JSONL needs nothing but `hud`. The platform resolves (env, id)
+    # against the env's freshly-deployed build manifest and validates args.
+    # See https://docs.hud.ai/v6/core/tasks (".json/.jsonl portable rows").
+    result["taskset"] = cb.ir.env_name
+    rows = _taskset_rows(cb.ir.env_name, cb.ir.taskset_calls)
+    if not rows:
+        result["taskset_synced"] = False
+        result["taskset_error"] = "no task rows compiled from the project — add at least one Task"
+        result["message"] = "deployed, but there are no tasks to sync"
+        print(json.dumps(result))
+        return 0
+
+    tasks_jsonl = out / "tasks.jsonl"
+    tasks_jsonl.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+
+    # `--yes` is deprecated; `hud sync tasks` no longer prompts. Run it
+    # non-interactively (DEVNULL stdin) so a stray confirmation can't block us.
+    sync_cmd = [hud, "sync", "tasks", cb.ir.env_name, str(tasks_jsonl)]
     sync_proc = subprocess.run(sync_cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     sync_out = (sync_proc.stdout or "") + (sync_proc.stderr or "")
     sys.stderr.write(sync_out)  # keep the full sync log on stderr (Railway logs / logTail)
-    result["taskset"] = cb.ir.env_name
     # Treat "collected 0 tasks" as a failure too — `hud sync` can exit 0 having uploaded nothing.
     found_zero = "Found 0 task" in sync_out or "No Task objects found" in sync_out
     result["taskset_synced"] = sync_proc.returncode == 0 and not found_zero
     if result["taskset_synced"]:
-        result["message"] = "deployed and taskset synced"
+        result["message"] = f"deployed and synced {len(rows)} task(s)"
     else:
-        tail = [ln for ln in sync_out.splitlines() if ln.strip()][-6:]
+        tail = [ln for ln in sync_out.splitlines() if ln.strip()][-8:]
         result["taskset_error"] = "\n".join(tail) or f"`hud sync tasks` exited {sync_proc.returncode}"
         result["message"] = "deployed, but TASKSET SYNC FAILED — the run page won't find tasks (see taskset_error)"
     print(json.dumps(result))
