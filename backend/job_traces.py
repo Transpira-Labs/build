@@ -68,4 +68,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from bridge_log import run
+    run("job_traces", main)

@@ -110,4 +110,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from bridge_log import run
+    run("eval_one", main)
