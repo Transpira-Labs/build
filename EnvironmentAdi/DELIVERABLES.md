@@ -63,6 +63,22 @@ hud eval sc-bench Qwen/Qwen3-8B                  --remote --full --group-size 5 
 - Fork B model: https://hud.ai/models/647eba3f-e7c4-40f4-abd5-0a4148f2975a
 - Leaderboard URL: _(to fill)_
 
+## STATUS (live)
+- **Training = WORKING (confirmed real).** Root cause of all prior failures was a
+  code bug: `Run.failed` is a setter (needs an `error` arg), not a predicate — so
+  filtering on it discarded every good rollout. Fixed (filter on reward presence).
+  A real `trainer.step` landed: rewards `[1.0,1.0,0.72,0.42]` → ckpt mean 0.785,
+  std 0.24 (genuine GRPO spread).
+- **Overnight run LAUNCHED** (`run_overnight.sh`, nohup + caffeinate): trains both
+  forks (3 steps × 4 tasks × group 4, client-here LocalRuntime recipe) → verifies
+  checkpoints → evals all 3 models on `sc-bench` group=5. Done marker
+  `.generated/OVERNIGHT_DONE`; log `.generated/overnight.log`.
+- **D5 Gemma: BLOCKED BY PLATFORM.** `gemma-4-26b-a4b-it` and `gemma-4-31b-it` are
+  both `is_trainable: false` (agent `gemini`). No trainable Gemma exists on HUD, so
+  "train Gemma on each env" is impossible. Closest trainable small model:
+  `meta-llama/Llama-3.2-3B`. Plan: run the identical pipeline with Llama-3.2-3B as
+  the Gemma-equivalent trainee + document the block.
+
 ## Hard rules
 1. Training must be REAL gradient steps on REAL rollouts with reward spread (GRPO
    needs within-group spread). No constant/echo graders, no fabricated rewards.
