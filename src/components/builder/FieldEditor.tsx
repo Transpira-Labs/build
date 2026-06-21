@@ -14,9 +14,11 @@ export function FieldEditor({ block }: { block: Block }) {
 
   if (def.valueType === "text") {
     return (
-      // resize-y gives the bottom-right grip to expand; overflow-auto lets long
-      // text scroll inside the box. onPointerDown stops the drag/pan handlers on
-      // the parent block from hijacking a resize/scroll gesture.
+      // flex-1 lets the box stretch to fill a block whose height was pulled
+      // taller (the parent leaf is a flex column); resize-y still gives the
+      // bottom-right grip, and overflow-auto lets long text scroll inside.
+      // onPointerDown stops the parent block's drag/pan handlers from hijacking
+      // a resize/scroll gesture.
       <textarea
         value={block.text ?? ""}
         onChange={(e) =>
@@ -24,7 +26,7 @@ export function FieldEditor({ block }: { block: Block }) {
         }
         onPointerDown={(e) => e.stopPropagation()}
         rows={2}
-        className={`min-h-[2.75rem] max-h-80 resize-y overflow-auto ${field}`}
+        className={`min-h-[2.75rem] flex-1 resize-y overflow-auto ${field}`}
       />
     );
   }

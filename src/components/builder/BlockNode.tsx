@@ -47,15 +47,22 @@ export function BlockNode({
   } as React.CSSProperties;
 
   const isGroup = def.role === "group";
+  // A text leaf can stretch to fill a parent block whose height the user has
+  // pulled taller — the flex chain below carries that growth down to the textarea.
+  const isTextLeaf = !isGroup && def.valueType === "text";
   const accepts = activeChildKind ? canAdd(block, activeChildKind) : false;
   const stop = (e: React.PointerEvent) => e.stopPropagation();
 
   return (
-    <div ref={setNodeRef} style={style} className="blk relative">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`blk relative ${isTextLeaf ? "flex min-h-0 flex-1 flex-col" : ""}`}
+    >
       <div
         className={`blk-shadow-sm overflow-hidden rounded-lg border border-black/10 ${
           accepts ? "ring-2 ring-accent ring-offset-1" : ""
-        }`}
+        } ${isTextLeaf ? "flex min-h-0 flex-1 flex-col" : ""}`}
       >
         {/* Header — drag handle */}
         <div
@@ -115,7 +122,11 @@ export function BlockNode({
           (isGroup ? (
             <GroupBody block={block} activeChildKind={activeChildKind} accepts={accepts} />
           ) : (
-            <div className="blk-body px-2 py-2">
+            <div
+              className={`blk-body px-2 py-2 ${
+                isTextLeaf ? "flex min-h-0 flex-1 flex-col" : ""
+              }`}
+            >
               <FieldEditor block={block} />
             </div>
           ))}
@@ -145,7 +156,7 @@ function GroupBody({
         {/* Left arm of the C */}
         <div className="blk-arm w-2 shrink-0" />
         {/* Mouth — where child blocks live */}
-        <div ref={setNodeRef} className="blk-body min-w-0 flex-1 space-y-2 px-2 py-2">
+        <div ref={setNodeRef} className="blk-body flex min-w-0 flex-1 flex-col gap-2 px-2 py-2">
           <SortableContext
             items={block.children.map((c) => c.id)}
             strategy={verticalListSortingStrategy}

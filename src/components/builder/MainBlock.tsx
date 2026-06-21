@@ -245,7 +245,7 @@ export function MainBlock({
                   mouthRef.current = el;
                 }}
                 style={block.height ? { height: block.height, overflowY: "auto" } : undefined}
-                className="blk-body min-w-0 flex-1 space-y-2 px-2.5 py-2.5"
+                className="blk-body flex min-w-0 flex-1 flex-col gap-2 px-2.5 py-2.5"
               >
                 <SortableContext
                   items={block.children.map((c) => c.id)}
