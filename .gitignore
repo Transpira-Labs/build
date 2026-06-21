@@ -1,0 +1,15 @@
+# node / vite (UI)
+node_modules/
+dist/
+*.log
+
+# python (backend)
+backend/.venv/
+backend/out/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+
+# env / secrets
+.env
+.env.local
