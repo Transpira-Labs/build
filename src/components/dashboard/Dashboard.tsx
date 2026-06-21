@@ -4,7 +4,7 @@
 // they open an existing one, spin up a new one, or — if they're new — follow
 // the welcome card into a guide. The builder itself lives at /build/[id].
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -294,6 +294,9 @@ function NewEnvModal({
 // ---------------------------------------------------------------------------
 
 function WelcomeCard() {
+  // "Take the tour" opens a modal that embeds a short walkthrough video.
+  const [tourOpen, setTourOpen] = useState(false);
+
   return (
     <section className="overflow-hidden rounded-2xl border border-accent/25 bg-accent/10 p-6 sm:p-8">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
@@ -309,16 +312,71 @@ function WelcomeCard() {
             tasks, and pick how it learns — then build and train.
           </p>
         </div>
-        {/* Placeholder destination — wired up to the guided tour in a later step. */}
-        <a
-          href="#"
+        <button
+          onClick={() => setTourOpen(true)}
           className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground shadow-sm transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-ring"
         >
           Take the tour
           <span aria-hidden>→</span>
-        </a>
+        </button>
       </div>
+
+      {tourOpen && <TourModal onClose={() => setTourOpen(false)} />}
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Guided-tour modal — embeds the walkthrough video (hosted on Google Drive) in
+// a responsive 16:9 frame.
+// ---------------------------------------------------------------------------
+
+const TOUR_VIDEO_SRC =
+  "https://drive.google.com/file/d/1AQSFpLuNEfgiLOA0Z1oc4OENJ0YJBgd0/preview";
+
+function TourModal({ onClose }: { onClose: () => void }) {
+  // Close on Escape, and lock background scroll while the modal is open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Take the tour"
+        className="w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <h2 className="font-display text-base font-semibold">Take the tour</h2>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="-mr-1 rounded-md px-2 py-1 text-muted-foreground transition hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="relative aspect-video w-full bg-black">
+          <iframe
+            src={TOUR_VIDEO_SRC}
+            title="Transpira walkthrough"
+            allow="autoplay; fullscreen"
+            allowFullScreen
+            className="absolute inset-0 h-full w-full"
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
