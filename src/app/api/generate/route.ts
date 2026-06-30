@@ -9,6 +9,7 @@
 
 import OpenAI from "openai";
 import { ENV_SPEC_SCHEMA } from "@/lib/generate";
+import { checkApiAccess } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -45,6 +46,10 @@ export async function POST(req: Request) {
   if (!prompt) {
     return Response.json({ error: "A description is required." }, { status: 400 });
   }
+
+  // AI assist requires admin-granted API access.
+  const access = await checkApiAccess();
+  if (!access.ok) return access.response;
 
   const key = process.env.HUD_API_KEY;
   if (!key) {

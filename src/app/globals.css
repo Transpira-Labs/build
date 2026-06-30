@@ -1,27 +1,26 @@
 @import "tailwindcss";
 
-/* ── Transpira "warm alpine" design system (mirrored from ../platform) ──────
-   Montserrat sans, Source Serif 4 display, cream background, warm brown
-   foreground, burnt-orange accent. */
+/* ── Transpira design system (shared with transpiralabs.com and ../platform) ──
+   Cool near-white background, charcoal ink, a single cobalt-blue accent.
+   Montserrat + IBM Plex Mono. */
 
 @theme {
-  --color-background: oklch(0.96 0.018 82);
-  --color-foreground: oklch(0.16 0.035 58);
-  --color-card: oklch(0.99 0.01 82);
-  --color-card-foreground: oklch(0.16 0.035 58);
-  --color-muted: oklch(0.92 0.015 75);
-  --color-muted-foreground: oklch(0.32 0.04 62);
-  --color-accent: oklch(0.56 0.15 52);
-  --color-accent-foreground: oklch(0.98 0.01 80);
-  --color-primary: oklch(0.2 0.04 58);
-  --color-primary-foreground: oklch(0.98 0.01 80);
-  --color-border: oklch(0.16 0.035 58 / 0.16);
-  --color-ring: oklch(0.56 0.15 52 / 0.5);
+  --color-background: oklch(0.985 0.002 250);
+  --color-foreground: oklch(0.225 0.013 262);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.225 0.013 262);
+  --color-muted: oklch(0.955 0.004 250);
+  --color-muted-foreground: oklch(0.5 0.018 260);
+  --color-accent: oklch(0.48 0.12 262);
+  --color-accent-foreground: oklch(0.99 0.004 250);
+  --color-primary: oklch(0.48 0.12 262);
+  --color-primary-foreground: oklch(0.99 0.004 250);
+  --color-border: oklch(0.225 0.013 262 / 0.12);
+  --color-ring: oklch(0.48 0.12 262 / 0.45);
 
   --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
-  /* Sans-serif throughout — display (headings/labels) uses Montserrat too, just
-     heavier. (Source Serif is still loaded; swap it back here for the serif look.) */
   --font-display: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
   --radius: 0.75rem;
 }
@@ -37,20 +36,21 @@ body {
 .font-display {
   font-family: var(--font-display);
   font-weight: 600;
+  letter-spacing: -0.015em;
 }
 
 .font-mono {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
-/* Dual line-grid workspace (major + minor) on a warm cream base. */
+/* Dual line-grid workspace (major + minor) on a cool near-white base. */
 .canvas-grid {
-  background-color: oklch(0.94 0.016 82);
+  background-color: oklch(0.975 0.002 250);
   background-image:
-    linear-gradient(to right, oklch(0.16 0.035 58 / 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, oklch(0.16 0.035 58 / 0.05) 1px, transparent 1px),
-    linear-gradient(to right, oklch(0.16 0.035 58 / 0.025) 1px, transparent 1px),
-    linear-gradient(to bottom, oklch(0.16 0.035 58 / 0.025) 1px, transparent 1px);
+    linear-gradient(to right, oklch(0.225 0.013 262 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.225 0.013 262 / 0.05) 1px, transparent 1px),
+    linear-gradient(to right, oklch(0.225 0.013 262 / 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.225 0.013 262 / 0.025) 1px, transparent 1px);
   background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
 }
 
@@ -99,25 +99,25 @@ body {
    (`absolute` for canvas mains, `relative` for nested nodes / palette chips),
    which also anchors the knobs and help popover. */
 .blk {
-  --bd: color-mix(in srgb, var(--block-color, #8c7b63) 70%, #2b1d10);
-  --bl: color-mix(in srgb, var(--block-color, #8c7b63) 12%, #ffffff);
+  --bd: color-mix(in srgb, var(--block-color, #5b6470) 70%, #161b26);
+  --bl: color-mix(in srgb, var(--block-color, #5b6470) 12%, #ffffff);
 }
 /* Chunky hard-offset shadow (friendly physical depth) + a soft ambient one. */
 .blk-shadow {
-  box-shadow: 0 5px 0 0 var(--bd), 0 9px 22px -6px rgba(60, 40, 20, 0.22);
+  box-shadow: 0 5px 0 0 var(--bd), 0 9px 22px -6px rgba(28, 34, 48, 0.22);
 }
 .blk-shadow-sm {
-  box-shadow: 0 3px 0 0 var(--bd), 0 5px 12px -6px rgba(60, 40, 20, 0.2);
+  box-shadow: 0 3px 0 0 var(--bd), 0 5px 12px -6px rgba(28, 34, 48, 0.2);
 }
 .blk-header {
-  background: var(--block-color, #8c7b63);
+  background: var(--block-color, #5b6470);
   color: #fff;
 }
 .blk-body {
   background: var(--bl);
 }
 .blk-arm {
-  background: var(--block-color, #8c7b63);
+  background: var(--block-color, #5b6470);
 }
 /* Scratch-style stack connectors (canvas main blocks only): a recessed socket
    on top that the peg of the block above drops into. */
@@ -138,5 +138,5 @@ body {
   width: 42px;
   height: 25px;
   border-radius: 0 0 7px 7px;
-  background: var(--block-color, #8c7b63);
+  background: var(--block-color, #5b6470);
 }

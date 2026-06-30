@@ -2,6 +2,8 @@
 // ?jobId=…). Deploys/evals run as background jobs now, so the UI kicks one off
 // and waits on its result here. Returns the job's `result`; throws on failure.
 
+import { apiErrorFrom } from "@/lib/apiError";
+
 export async function runJob<T>(
   endpoint: string,
   body: unknown,
@@ -14,7 +16,9 @@ export async function runJob<T>(
   });
   const started = await startRes.json().catch(() => ({}));
   if (!startRes.ok) {
-    throw new Error(started.error || `Request failed (${startRes.status})`);
+    // 402 (no credits / suspended / over limit) and 401 (signed out) get a clear,
+    // actionable message; everything else falls back to the server's error text.
+    throw apiErrorFrom(startRes.status, started, `Request failed (${startRes.status})`);
   }
   // No jobId means the route answered synchronously (shouldn't happen now, but
   // tolerate it) — treat the body as the result.

@@ -29,6 +29,7 @@ import { toV1Blocks } from "@/lib/ir/v1";
 import { buildSignature } from "@/lib/buildSig";
 import { resyncTasks } from "@/lib/resync";
 import { runJob } from "@/lib/pollJob";
+import { apiErrorFrom } from "@/lib/apiError";
 
 // Mirrors the backend's DEFAULT_MODELS (a spanning weak→strong set).
 const MODELS = [
@@ -720,7 +721,7 @@ function HudRunPanel({ doc, deploy }: { doc: ProjectDoc; deploy: DeployInfo }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.jobId) {
-        setError(data.error || "Couldn't start the run.");
+        setError(apiErrorFrom(res.status, data, "Couldn't start the run.").message);
         setRunning(false);
         return;
       }

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { fromIR, type IR } from "@/lib/ir/schema";
 import { defaultTrain, type ProjectDoc } from "@/lib/blocks/model";
+import { apiErrorFrom } from "@/lib/apiError";
 
 // The JSON schema handed to the model as the emit_environment tool parameters.
 // Kept in plain JSON Schema (not derived from Zod) so it travels to the gateway
@@ -141,7 +142,7 @@ export async function generateEnvironment(prompt: string): Promise<ProjectDoc> {
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error((data && data.error) || `Generation failed (${res.status}).`);
+    throw apiErrorFrom(res.status, data, `Generation failed (${res.status}).`);
   }
   const parsed = envSpecSchema.safeParse(data?.spec);
   if (!parsed.success) {

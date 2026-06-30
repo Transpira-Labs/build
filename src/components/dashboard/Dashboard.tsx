@@ -17,8 +17,9 @@ import {
 import { TEMPLATES, type Template } from "@/lib/templates";
 import { generateEnvironment } from "@/lib/generate";
 import { firstMain, type ProjectDoc } from "@/lib/blocks/model";
+import { UserMenu, type SessionUser } from "@/components/auth/UserMenu";
 
-export function Dashboard() {
+export function Dashboard({ initialUser = null }: { initialUser?: SessionUser | null }) {
   const router = useRouter();
   // `ready` is false until the shelf has been read on the client, so we hold
   // off on the empty state instead of flashing it during the first paint.
@@ -62,19 +63,23 @@ export function Dashboard() {
         <span className="text-sm font-semibold text-muted-foreground">
           Environments
         </span>
-        <Link
-          href="/benchception"
+        <a
+          href="https://transpiralabs.com/case-studies/benchception"
+          target="_blank"
+          rel="noopener noreferrer"
           className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3.5 py-1.5 text-sm font-semibold text-foreground shadow-sm transition hover:border-accent/50 hover:text-accent focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <span aria-hidden className="text-accent">✦</span>
           Benchception
-        </Link>
+        </a>
         <button
           onClick={openNew}
           className="rounded-md bg-accent px-3.5 py-1.5 text-sm font-semibold text-accent-foreground shadow-sm transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-ring"
         >
           New environment
         </button>
+        <span className="mx-1 h-6 w-px bg-border" aria-hidden />
+        <UserMenu user={initialUser} />
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto">

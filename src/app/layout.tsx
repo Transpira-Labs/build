@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
-import { Montserrat, Source_Serif_4 } from "next/font/google";
+import { Montserrat, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-// Mirror the platform: Montserrat sans + Source Serif 4 display.
+// Shared ecosystem type: Montserrat sans/display + IBM Plex Mono for data/labels.
 const montserrat = Montserrat({
   variable: "--font-montserrat",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
 
-const sourceSerif = Source_Serif_4({
-  variable: "--font-source-serif",
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-ibm-plex-mono",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${montserrat.variable} ${sourceSerif.variable} h-full`}
+      className={`${montserrat.variable} ${ibmPlexMono.variable} h-full`}
     >
       <body className="h-full overflow-hidden">{children}</body>
     </html>
