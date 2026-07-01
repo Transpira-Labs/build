@@ -355,7 +355,7 @@ export function Canvas({
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => setListOpen((v) => !v)}
-          title="List view — browse all blocks"
+          title="List view: browse all blocks"
           aria-label="List view"
           aria-pressed={listOpen}
           className={`flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium backdrop-blur-sm transition-colors ${
@@ -372,7 +372,7 @@ export function Canvas({
           onPointerDown={(e) => e.stopPropagation()}
           onClick={organize}
           disabled={doc.blocks.length === 0}
-          title="Organize — tidy blocks into a compact layout"
+          title="Organize: tidy blocks into a compact layout"
           aria-label="Organize blocks"
           className="flex items-center gap-1 rounded-md border border-border bg-card/80 px-2 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-sm transition-colors hover:bg-card hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
         >

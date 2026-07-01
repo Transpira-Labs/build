@@ -199,7 +199,7 @@ export const TEMPLATES: Template[] = [
             "Use the tools to find the answer, then report the cancellation reason and the warehouse order status.",
           good: [
             "Starts from query_buyer_and_related('T1001') to find FO2001 and WO3001.",
-            "Finds FO2001 is cancelled, then calls get_cancel_error_code to get the reason — the wrong size was received, so the buyer cancelled and reordered.",
+            "Finds FO2001 is cancelled, then calls get_cancel_error_code to get the reason: the wrong size was received, so the buyer cancelled and reordered.",
             "Reports WO3001's status as packing_in_progress.",
           ],
           bad: [
@@ -254,7 +254,7 @@ export const TEMPLATES: Template[] = [
         train(
           "qwen3-32b",
           2000,
-          "More questions answered with correct tool chains and accurate structured answers — right cancellation reasons, error codes, and rolled-up statuses — with fewer skipped or hallucinated tool calls.",
+          "More questions answered with correct tool chains and accurate structured answers (right cancellation reasons, error codes, and rolled-up statuses) with fewer skipped or hallucinated tool calls.",
         ),
       ]),
   },
@@ -387,7 +387,7 @@ export const TEMPLATES: Template[] = [
         task({
           name: "Login trouble",
           prompt:
-            "Customer: 'I can't log in — the password reset email never arrives.'",
+            "Customer: 'I can't log in. The password reset email never arrives.'",
           format: "Reply with: queue, priority, and a one-line reason.",
           good: ["Routes to Account or Technical.", "Uses Normal priority unless it's blocking work."],
           bad: ["Routes to Billing.", "Marks Urgent with no stated cause."],

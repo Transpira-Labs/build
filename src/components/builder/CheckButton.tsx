@@ -49,7 +49,7 @@ export function CheckButton() {
                 {result.ready
                   ? warnings.length === 0
                     ? "Ready to build"
-                    : "Ready to build — a few ideas below"
+                    : "Ready to build: a few ideas below"
                   : `${result.errors} thing${result.errors === 1 ? "" : "s"} to fix first`}
               </p>
             </div>
@@ -63,7 +63,7 @@ export function CheckButton() {
               )}
               {result.issues.length === 0 && (
                 <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-                  Everything looks good — nothing missing.
+                  Everything looks good. Nothing missing.
                 </p>
               )}
             </div>
@@ -95,8 +95,8 @@ function Section({
           <li key={i} className="flex gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50">
             <Icon className={`mt-0.5 size-3.5 shrink-0 ${color}`} />
             <span className="text-xs leading-relaxed">
-              <span className="font-semibold text-foreground">{issue.where}</span>{" "}
-              <span className="text-muted-foreground">— {issue.message}</span>
+              <span className="font-semibold text-foreground">{issue.where}</span>:{" "}
+              <span className="text-muted-foreground">{issue.message}</span>
             </span>
           </li>
         ))}

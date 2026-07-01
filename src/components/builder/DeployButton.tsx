@@ -102,7 +102,7 @@ export function DeployButton() {
       const check = checkEnvironment(ir);
       if (!check.ready) {
         setError(
-          `${check.errors} thing${check.errors === 1 ? "" : "s"} to fix first — open “Check it” to see them.`,
+          `${check.errors} thing${check.errors === 1 ? "" : "s"} to fix first. Open “Check it” to see them.`,
         );
         setPhase("blocked");
         return;
@@ -148,7 +148,7 @@ export function DeployButton() {
       setResult(data);
       setError(
         isAgentFault(data)
-          ? "The build hit a code-generation hiccup on our end (not your setup). We retried once — give it another go."
+          ? "The build hit a code-generation hiccup on our end (not your setup). We retried once. Give it another go."
           : data.message || "Compiled, but not deployed.",
       );
       setPhase("error");
@@ -209,7 +209,7 @@ export function DeployButton() {
                     <p className="text-sm font-medium">Compiling and deploying…</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Synthesizing tools &amp; tasks, then building the HUD image. This
-                      can take a few minutes — keep this tab open.
+                      can take a few minutes. Keep this tab open.
                     </p>
                   </div>
                 </div>
@@ -241,7 +241,7 @@ export function DeployButton() {
                           Taskset didn&apos;t sync to HUD
                         </p>
                         <p className="mt-0.5 leading-relaxed text-amber-700">
-                          The env deployed, but its tasks weren&apos;t registered — runs won&apos;t
+                          The env deployed, but its tasks weren&apos;t registered. Runs won&apos;t
                           find anything to evaluate. Hit{" "}
                           <span className="font-semibold">Build it</span> again to retry the sync.
                         </p>
@@ -281,7 +281,7 @@ export function DeployButton() {
                         <p className="mt-0.5 leading-relaxed text-amber-700">
                           They&apos;ll just echo their input (no real data):{" "}
                           <span className="font-mono">{result.stubbed.join(", ")}</span>. The
-                          code-generation step didn&apos;t run — hit{" "}
+                          code-generation step didn&apos;t run. Hit{" "}
                           <span className="font-semibold">Build it</span> again to retry.
                         </p>
                       </div>
@@ -314,7 +314,7 @@ export function DeployButton() {
                     <Play className="size-3.5" /> Run &amp; train on these tasks
                   </Link>
                   <p className="text-center text-[11px] text-muted-foreground">
-                    Baseline how models do, then kick off an RL run — all on HUD.
+                    Baseline how models do, then kick off an RL run, all on HUD.
                   </p>
                 </div>
               )}
@@ -364,7 +364,7 @@ function Diagnostics({ diagnostics }: { diagnostics?: Diag[] }) {
             <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
           )}
           <span className="text-muted-foreground">
-            <span className="font-mono text-foreground/80">{d.code}</span> — {d.message}
+            <span className="font-mono text-foreground/80">{d.code}</span>: {d.message}
           </span>
         </li>
       ))}

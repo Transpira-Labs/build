@@ -50,7 +50,7 @@ export function RightPanel() {
       } else {
         const res = irSchema.safeParse(parsed);
         if (!res.success) {
-          throw new Error("Unrecognized JSON — expected an exported environment");
+          throw new Error("Unrecognized JSON: expected an exported environment");
         }
         nextDoc = fromIR(res.data);
       }
@@ -149,7 +149,7 @@ export function RightPanel() {
 
         {importError && (
           <div className="border-b border-border bg-red-50 px-4 py-2 text-[11px] leading-relaxed text-red-600">
-            ⚠ {importError} — nothing imported
+            ⚠ {importError}, nothing imported
           </div>
         )}
 

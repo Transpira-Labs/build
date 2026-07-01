@@ -80,7 +80,7 @@ export default async function AccountPage() {
         {user.suspended && (
           <section className="mt-6 rounded-2xl border border-[var(--bad,#B0503E)]/40 bg-[var(--bad,#B0503E)]/5 p-6">
             <p className="text-sm font-medium text-[var(--bad,#B0503E)]">
-              Your account is suspended — actions are disabled. Contact support.
+              Your account is suspended. Actions are disabled. Contact support.
             </p>
           </section>
         )}

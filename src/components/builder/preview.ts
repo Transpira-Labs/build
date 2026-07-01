@@ -13,18 +13,18 @@ export function previewOf(block: Block): string {
 
   switch (def.valueType) {
     case "text":
-      return block.text?.trim() || "—";
+      return block.text?.trim() || "-";
     case "choice":
       return (
         def.options?.find((o) => o.value === block.text)?.label ??
         block.text ??
-        "—"
+        "-"
       );
     case "number":
       return `${block.num ?? def.number?.default ?? ""} ${def.number?.unit ?? ""}`.trim();
     case "reference":
-      return block.reference?.value?.trim() || block.reference?.mode || "—";
+      return block.reference?.value?.trim() || block.reference?.mode || "-";
     default:
-      return "—";
+      return "-";
   }
 }

@@ -225,7 +225,7 @@ function StalenessBanner({
         });
         // saveEnvironment is reactive — the banner unmounts once doc matches.
       } else {
-        setErr(data.message || data.error || "Rebuild failed — open the editor and try Build it.");
+        setErr(data.message || data.error || "Rebuild failed. Open the editor and try Build it.");
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Network error.");
@@ -273,7 +273,7 @@ function StalenessBanner({
         </Link>
         {rebuilding && (
           <span className="text-xs text-amber-700">
-            Compiling &amp; deploying on HUD — keep this tab open.
+            Compiling &amp; deploying on HUD. Keep this tab open.
           </span>
         )}
       </div>
@@ -353,7 +353,7 @@ function TrainPanel({
           message: data.error,
         },
       });
-      if (!data.ok) setError(data.error || "Training did not complete — see the notes below.");
+      if (!data.ok) setError(data.error || "Training did not complete. See the notes below.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Network error.");
     } finally {
@@ -371,7 +371,7 @@ function TrainPanel({
         Forks{" "}
         <span className="font-mono text-foreground/80">{base}</span> into a trainable model{" "}
         <span className="font-mono text-foreground/80">{slug}</span> and runs RL on the tasks you
-        defined — rollouts and inference both route through HUD.
+        defined, rollouts and inference both route through HUD.
       </p>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -384,7 +384,7 @@ function TrainPanel({
           >
             {BASES.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.value} — {o.label}
+                {o.value}: {o.label}
               </option>
             ))}
           </select>
@@ -417,10 +417,10 @@ function TrainPanel({
         {baseline ? (
           <>
             <CircleCheck className="mr-1 inline size-3 text-green-600" />
-            Gated by your baseline — GRPO needs within-group reward spread to learn.
+            Gated by your baseline: GRPO needs within-group reward spread to learn.
           </>
         ) : (
-          <>Tip: run a baseline above first — it gates training on whether the tasks have signal.</>
+          <>Tip: run a baseline above first. It gates training on whether the tasks have signal.</>
         )}
       </p>
 
@@ -441,7 +441,7 @@ function TrainPanel({
       </button>
       {running && (
         <p className="mt-2 text-center text-xs text-muted-foreground">
-          {steps} steps × {group} rollouts/task on HUD — this can take a while. Keep this tab open.
+          {steps} steps × {group} rollouts/task on HUD. This can take a while. Keep this tab open.
         </p>
       )}
 
@@ -520,7 +520,7 @@ function TrainResultView({ r }: { r: TrainResult }) {
 
       <p className="text-xs text-muted-foreground">
         Sample it through HUD as{" "}
-        <span className="font-mono text-foreground/80">{r.model_slug}</span> — the trained head is
+        <span className="font-mono text-foreground/80">{r.model_slug}</span>, the trained head is
         live behind that slug.
       </p>
 
@@ -651,7 +651,7 @@ function HudRunPanel({ doc, deploy }: { doc: ProjectDoc; deploy: DeployInfo }) {
           tasksetSynced: true,
         },
       });
-      setResyncMsg(`Synced ${r.count ?? ""} task(s) — you can run now.`);
+      setResyncMsg(`Synced ${r.count ?? ""} task(s). You can run now.`);
     } else {
       setResyncMsg(r.taskset_error || r.error || "Sync failed.");
     }
@@ -754,7 +754,7 @@ function HudRunPanel({ doc, deploy }: { doc: ProjectDoc; deploy: DeployInfo }) {
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs">
           <TriangleAlert className="size-3.5 shrink-0 text-amber-500" />
           <span className="text-amber-800">
-            Taskset isn&apos;t synced — runs will find no tasks.
+            Taskset isn&apos;t synced. Runs will find no tasks.
           </span>
           <button
             onClick={resync}
@@ -918,7 +918,7 @@ function HudRunPanel({ doc, deploy }: { doc: ProjectDoc; deploy: DeployInfo }) {
 
           {running && (
             <p className="text-center text-xs text-muted-foreground">
-              Rollouts run on HUD and can take a few minutes — keep this tab open.
+              Rollouts run on HUD and can take a few minutes. Keep this tab open.
             </p>
           )}
         </div>

@@ -229,7 +229,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     role: "main",
     label: "Taskset",
     hint: "All the things to test.",
-    help: "Holds your tasks — the set the agent is tested and trained on. Add as many Tasks as you like.",
+    help: "Holds your tasks: the set the agent is tested and trained on. Add as many Tasks as you like.",
     color: "#9C4A55",
     tint: "#F1E3E5",
     accepts: ["task"],

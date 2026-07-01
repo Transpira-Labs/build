@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   const key = process.env.HUD_API_KEY;
   if (!key) {
     return Response.json(
-      { error: "Generation is unavailable — HUD_API_KEY is not configured." },
+      { error: "Generation is unavailable. HUD_API_KEY is not configured." },
       { status: 503 },
     );
   }

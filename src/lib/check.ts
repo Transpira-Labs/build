@@ -40,7 +40,7 @@ export function checkEnvironment(ir: IR): CheckResult {
 
   // --- Tasks (the training/eval signal) ----------------------------------
   if (ir.tasks.length === 0) {
-    err("Tasks", "Add at least one Task — there's nothing to test or train on yet.");
+    err("Tasks", "Add at least one Task. There's nothing to test or train on yet.");
   } else {
     ir.tasks.forEach((t, i) => {
       const name = t.name?.trim() || `Task ${i + 1}`;
@@ -50,13 +50,13 @@ export function checkEnvironment(ir: IR): CheckResult {
       if (t.rubric.good.length === 0) {
         err(
           name,
-          "No Good answer defined — without one the agent can never earn reward, so it can't be trained.",
+          "No Good answer defined. Without one the agent can never earn reward, so it can't be trained.",
         );
       }
       if (t.rubric.good.length > 0 && t.rubric.bad.length === 0) {
         warn(
           name,
-          "No Bad answer — consider adding one so wrong answers clearly score nothing.",
+          "No Bad answer. Consider adding one so wrong answers clearly score nothing.",
         );
       }
       t.references.forEach((r) => {
@@ -65,7 +65,7 @@ export function checkEnvironment(ir: IR): CheckResult {
         } else if (r.mode === "upload") {
           warn(
             name,
-            `Uploaded file “${r.value}” isn't wired up yet — it'll be treated as a placeholder.`,
+            `Uploaded file “${r.value}” isn't wired up yet. It'll be treated as a placeholder.`,
           );
         }
       });
@@ -76,7 +76,7 @@ export function checkEnvironment(ir: IR): CheckResult {
   if (ir.tools.length === 0) {
     warn(
       "Tools",
-      "No tools yet — the agent can only answer in text. Add a Tool if it needs to take actions.",
+      "No tools yet. The agent can only answer in text. Add a Tool if it needs to take actions.",
     );
   } else {
     ir.tools.forEach((tool, i) => {
@@ -85,7 +85,7 @@ export function checkEnvironment(ir: IR): CheckResult {
         err(name, "This tool doesn't say what it does.");
       }
       if (!tool.returns.trim()) {
-        warn(name, "This tool doesn't say what it returns — the agent may not know what to expect.");
+        warn(name, "This tool doesn't say what it returns. The agent may not know what to expect.");
       }
     });
   }
@@ -95,7 +95,7 @@ export function checkEnvironment(ir: IR): CheckResult {
     warn("Training", "No model picked to train.");
   }
   if (!ir.train.set_size) {
-    warn("Training", "Practice rounds is 0 — set how much the agent should train.");
+    warn("Training", "Practice rounds is 0. Set how much the agent should train.");
   }
 
   const errors = issues.filter((i) => i.level === "error").length;

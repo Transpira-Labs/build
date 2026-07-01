@@ -261,7 +261,7 @@ function NewEnvModal({
               className="mt-2 w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm leading-relaxed shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-ring disabled:opacity-60"
             />
             <p className="mt-1.5 text-xs text-muted-foreground">
-              We keep it simple — a short description, a few tasks, and at most a
+              We keep it simple: a short description, a few tasks, and at most a
               tool or two. You can add more in the builder.
             </p>
             {error && (
@@ -314,7 +314,7 @@ function WelcomeCard() {
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             No code required. Describe what your agent should do, add a few
-            tasks, and pick how it learns — then build and train.
+            tasks, and pick how it learns, then build and train.
           </p>
         </div>
         <button
@@ -466,7 +466,7 @@ function EnvCard({
           {doc.name}
         </h3>
         <p className="mt-1.5 line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">
-          {overview || "No description yet — open it to start building."}
+          {overview || "No description yet. Open it to start building."}
         </p>
         <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
           <span>{count === 0 ? "Empty" : `${count} block${count === 1 ? "" : "s"}`}</span>
