@@ -279,12 +279,12 @@ export function Canvas({
 
   const s = view.scale;
   const grid: React.CSSProperties = {
-    backgroundColor: "oklch(0.94 0.016 82)",
+    backgroundColor: "oklch(0.94 0.016 250)",
     backgroundImage: [
-      "linear-gradient(to right, oklch(0.16 0.035 58 / 0.05) 1px, transparent 1px)",
-      "linear-gradient(to bottom, oklch(0.16 0.035 58 / 0.05) 1px, transparent 1px)",
-      "linear-gradient(to right, oklch(0.16 0.035 58 / 0.025) 1px, transparent 1px)",
-      "linear-gradient(to bottom, oklch(0.16 0.035 58 / 0.025) 1px, transparent 1px)",
+      "linear-gradient(to right, oklch(0.225 0.035 262 / 0.05) 1px, transparent 1px)",
+      "linear-gradient(to bottom, oklch(0.225 0.035 262 / 0.05) 1px, transparent 1px)",
+      "linear-gradient(to right, oklch(0.225 0.035 262 / 0.025) 1px, transparent 1px)",
+      "linear-gradient(to bottom, oklch(0.225 0.035 262 / 0.025) 1px, transparent 1px)",
     ].join(", "),
     backgroundSize: `${120 * s}px ${120 * s}px, ${120 * s}px ${120 * s}px, ${24 * s}px ${24 * s}px, ${24 * s}px ${24 * s}px`,
     backgroundPosition: `${view.x}px ${view.y}px`,
